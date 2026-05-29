@@ -1,0 +1,2246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ABB Procurement CRM</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<style>
+:root{--abb-red:#FF000F;--abb-lilac:#6764f6;--abb-lilac2:#e4e7ff;--bg:#f4f5fb;--sidebar:#1e1e3f;--card:#fff;--border:#e2e8f0;--text:#22223b;--muted:#7c7fa8;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden;}
+/* SIDEBAR */
+.sidebar{width:220px;min-width:220px;background:var(--sidebar);display:flex;flex-direction:column;overflow-y:auto;z-index:10;}
+.sidebar-logo{padding:22px 18px 16px;border-bottom:1px solid rgba(255,255,255,0.08);}
+.sidebar-logo .brand{color:#fff;font-weight:800;font-size:1.1rem;letter-spacing:.3px;}
+.sidebar-logo .sub{color:#a5b4fc;font-size:0.72rem;margin-top:2px;}
+.nav-section{padding:12px 12px 4px;color:#a5b4fc;font-size:0.68rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;}
+.nav-item{padding:10px 16px;color:#c4c6e7;font-size:0.85rem;cursor:pointer;border-radius:8px;margin:2px 8px;display:flex;align-items:center;gap:10px;transition:all .15s;}
+.nav-item:hover{background:rgba(103,100,246,.2);color:#fff;}
+.nav-item.active{background:linear-gradient(90deg,var(--abb-lilac),#5051c9);color:#fff;font-weight:700;box-shadow:0 2px 10px rgba(103,100,246,.4);}
+.nav-icon{font-size:1rem;width:20px;text-align:center;}
+/* MAIN */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;box-shadow:0 1px 4px rgba(103,100,246,.06);}
+.topbar h2{font-size:1.1rem;font-weight:700;color:var(--text);}
+.topbar-right{display:flex;align-items:center;gap:12px;}
+.content{flex:1;overflow-y:auto;padding:24px 28px;}
+/* PAGE */
+.page{display:none;}.page.active{display:block;}
+/* CARDS */
+.card{background:var(--card);border-radius:14px;padding:20px 22px;border:1px solid var(--border);box-shadow:0 1px 6px rgba(103,100,246,.05);margin-bottom:18px;}
+.card-title{font-weight:700;font-size:0.92rem;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:20px;}
+.kpi-card{background:#fff;border-radius:14px;padding:18px 20px;border:1px solid var(--border);display:flex;align-items:center;gap:14px;box-shadow:0 1px 6px rgba(103,100,246,.05);}
+.kpi-icon{font-size:1.8rem;}
+.kpi-value{font-size:1.6rem;font-weight:800;color:var(--text);}
+.kpi-label{font-size:0.75rem;color:var(--muted);margin-top:2px;}
+/* DASHBOARD ROW */
+.dash-row{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+/* TABLE */
+.table-wrap{overflow-x:auto;}
+table{width:100%;border-collapse:collapse;font-size:0.83rem;}
+thead th{background:#f8f9fe;color:var(--muted);font-weight:700;font-size:0.72rem;text-transform:uppercase;letter-spacing:.6px;padding:10px 12px;border-bottom:2px solid var(--border);white-space:nowrap;text-align:left;}
+tbody td{padding:10px 12px;border-bottom:1px solid #f1f3f9;vertical-align:middle;}
+tbody tr:hover td{background:#fafbff;}
+/* BUTTONS */
+.btn{padding:8px 16px;border-radius:8px;border:none;cursor:pointer;font-size:0.83rem;font-weight:600;transition:all .15s;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--abb-lilac);color:#fff;} .btn-primary:hover{background:#5051c9;}
+.btn-secondary{background:#f1f5f9;color:var(--text);} .btn-secondary:hover{background:#e2e8f0;}
+.btn-danger{background:#fee2e2;color:#991b1b;} .btn-danger:hover{background:#fca5a5;}
+.btn-outline{background:#fff;color:var(--abb-lilac);border:1.5px solid var(--abb-lilac);} .btn-outline:hover{background:var(--abb-lilac2);}
+.btn-sm{padding:5px 10px;font-size:0.76rem;}
+/* SECTION HEADER */
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.section-header h3{font-size:1rem;font-weight:700;}
+/* FILTERS */
+.filters-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.filter-select{padding:7px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.82rem;background:#fff;color:var(--text);outline:none;}
+.filter-select:focus{border-color:var(--abb-lilac);}
+/* BADGES */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;}
+.badge-green{background:#d1fae5;color:#065f46;} .badge-red{background:#fee2e2;color:#991b1b;}
+.badge-blue{background:#dbeafe;color:#1e40af;} .badge-yellow{background:#fef3c7;color:#92400e;}
+.badge-gray{background:#f1f5f9;color:#475569;} .badge-purple{background:#ede9fe;color:#5b21b6;}
+/* FORMS */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.form-group{display:flex;flex-direction:column;gap:5px;}
+.form-group label{font-size:0.78rem;font-weight:600;color:var(--muted);}
+.form-group input,.form-group select,.form-group textarea{padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:0.84rem;color:var(--text);background:#fff;outline:none;transition:border .15s;width:100%;}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{border-color:var(--abb-lilac);}
+.form-group textarea{resize:vertical;min-height:70px;}
+/* MODALS - ALL use .open class - NO inline display toggling */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(34,34,59,.5);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(2px);}
+.modal-overlay.open{display:flex;}
+.modal{background:#fff;border-radius:16px;padding:28px 30px;width:90%;max-width:580px;max-height:90vh;overflow-y:auto;position:relative;animation:fadeIn .18s;}
+.modal-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--muted);}
+.modal h3{font-size:1.05rem;font-weight:800;margin-bottom:20px;}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--border);}
+/* GANTT MODAL - also uses .open class */
+.gantt-overlay{display:none;position:fixed;inset:0;z-index:600;background:rgba(15,15,30,.92);backdrop-filter:blur(4px);flex-direction:column;overflow:hidden;}
+.gantt-overlay.open{display:flex;}
+/* ALERTS */
+.alert{padding:12px 16px;border-radius:10px;font-size:0.83rem;margin-bottom:14px;display:flex;align-items:center;gap:10px;}
+.alert-info{background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe;}
+.alert-warn{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;}
+.alert-danger{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;}
+.alert-success{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;}
+/* EMPTY STATE */
+.empty-state{text-align:center;padding:40px 20px;color:var(--muted);}
+.empty-icon{font-size:2.5rem;margin-bottom:10px;}
+/* ACTION BTNS */
+.action-btns{display:flex;gap:6px;flex-wrap:wrap;}
+/* COLOR DOT */
+.color-dot{width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;}
+/* PROGRESS BAR */
+.prog-bar{height:7px;border-radius:4px;background:#e2e8f0;overflow:hidden;}
+.prog-fill{height:100%;border-radius:4px;transition:width .4s;}
+/* BULK BAR */
+.bulk-bar{display:none;align-items:center;gap:12px;background:#fef3c7;border:1.5px solid #f5a623;border-radius:10px;padding:10px 18px;margin-bottom:12px;}
+.bulk-bar.show{display:flex;}
+/* BOM STATUS */
+.po-released{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7;border-radius:6px;padding:3px 10px;font-size:.76rem;font-weight:700;white-space:nowrap;}
+.po-partial{background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:6px;padding:3px 10px;font-size:.76rem;font-weight:700;white-space:nowrap;}
+.po-pending{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5;border-radius:6px;padding:3px 10px;font-size:.76rem;font-weight:700;white-space:nowrap;}
+/* GANTT */
+.gantt-label-col{width:260px;min-width:260px;overflow-y:auto;overflow-x:hidden;background:#16163a;border-right:2px solid rgba(103,100,246,.3);flex-shrink:0;}
+.gantt-timeline{flex:1;overflow:auto;position:relative;}
+.gantt-row{display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,.05);}
+/* CHECKBOX */
+input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor:pointer;}
+/* CHIPS */
+.chip{display:inline-flex;align-items:center;gap:4px;background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd;border-radius:5px;padding:2px 8px;font-size:.71rem;font-weight:700;cursor:pointer;margin:1px;}
+.chip:hover{background:#ddd6fe;}
+/* TOAST */
+#toast{position:fixed;bottom:28px;right:28px;background:#22223b;color:#fff;padding:12px 22px;border-radius:10px;font-size:.85rem;font-weight:600;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;box-shadow:0 4px 20px rgba(0,0,0,.3);}
+/* REMINDERS BELL */
+.notif-badge{background:var(--abb-red);color:#fff;border-radius:50%;width:18px;height:18px;font-size:.65rem;font-weight:800;display:flex;align-items:center;justify-content:center;position:absolute;top:6px;right:6px;}
+/* PULSE */
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(255,0,15,.4);}50%{box-shadow:0 0 0 6px transparent;}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(-10px);}to{opacity:1;transform:translateY(0);}}
+@keyframes pulseBreach{0%,100%{opacity:1;}50%{opacity:.5;}}
+
+/* PO Hover Tooltip */
+.po-tip-wrap { position: relative; display: inline-block; }
+.po-tip-wrap .po-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  background: #1e1e4a;
+  border: 1px solid rgba(103,100,246,.5);
+  color: #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: .8rem;
+  pointer-events: none;
+  min-width: 260px;
+  max-width: 340px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  line-height: 1.9;
+}
+.po-tip-wrap:hover .po-tooltip { display: block; }
+.po-id-link {
+  color: var(--abb-lilac);
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  font-size: .85rem;
+}
+
+
+/* PO Lines Modal */
+#po-lines-body tr { border-bottom: 1px solid rgba(103,100,246,.1); transition: background .15s; }
+#po-lines-body tr:hover { background: rgba(103,100,246,.07); }
+#po-lines-body td { padding: 10px 12px; font-size: .82rem; color: #e2e8f0; }
+.po-lines-summary { background: rgba(34,211,165,.08); border: 1px solid rgba(34,211,165,.25); border-radius:10px; padding:14px 18px; margin-bottom:16px; display:flex; gap:24px; flex-wrap:wrap; }
+.po-lines-summary .sm-label { font-size:.7rem; color:#7c7fa8; margin-bottom:2px; }
+.po-lines-summary .sm-val   { font-size:.9rem; font-weight:800; color:#e2e8f0; }
+
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div class="brand">⚡ ABB Procurement</div>
+    <div class="sub">CRM & Planning Tool</div>
+  </div>
+  <div class="nav-section">Main</div>
+  <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>Dashboard</div>
+  <div class="nav-item" onclick="showPage('projects',this)"><span class="nav-icon">🗂</span>Projects</div>
+  <div class="nav-item" onclick="showPage('suppliers',this)"><span class="nav-icon">🏭</span>Suppliers</div>
+  <div class="nav-section">Procurement</div>
+  <div class="nav-item" onclick="showPage('rfq',this)"><span class="nav-icon">📄</span>RFQ</div>
+  <div class="nav-item" onclick="showPage('orders',this)"><span class="nav-icon">🛒</span>Purchase Orders</div>
+  <div class="nav-item" onclick="showPage('bom',this)"><span class="nav-icon">📋</span>BOM</div>
+  <div class="nav-item" onclick="showPage('procplan',this)"><span class="nav-icon">📅</span>Procurement Plan</div>
+  <div class="nav-section">Admin</div>
+  <div class="nav-item" onclick="showPage('contracts',this)"><span class="nav-icon">📃</span>Contracts</div>
+  <div class="nav-item" onclick="showPage('reminders',this)"><span class="nav-icon">🔔</span>Reminders<span id="notif-count" style="display:none;background:var(--abb-red);color:#fff;border-radius:10px;padding:1px 7px;font-size:.68rem;margin-left:auto"></span></div>
+  <div class="nav-item" onclick="showPage('activity',this)"><span class="nav-icon">🕒</span>Activity Log</div>
+  <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙</span>Settings</div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <h2 id="page-title">📊 Dashboard</h2>
+    <div class="topbar-right">
+      <span id="breach-alert-top" style="display:none" class="badge badge-red" onclick="showPage('settings',document.querySelector('.nav-item:last-child'))" style="cursor:pointer"></span>
+      <span style="font-size:.8rem;color:var(--muted)" id="topbar-date"></span>
+    </div>
+  </div>
+  <div class="content">
+    <div id="toast"></div>
+
+<!-- ═══════════════ DASHBOARD ═══════════════ -->
+<div class="page active" id="page-dashboard">
+  <div class="kpi-grid" id="dash-kpis"></div>
+  <div id="dash-alerts"></div>
+  <div class="dash-row">
+    <div class="card"><div class="card-title">📦 POs by Status</div><div id="dash-po-status"></div></div>
+    <div class="card"><div class="card-title">⏰ Upcoming Deliveries</div><div id="dash-deliveries"></div></div>
+  </div>
+  <div class="dash-row">
+    <div class="card"><div class="card-title">🏭 Top Suppliers by PO Value</div><div id="dash-suppliers"></div></div>
+    <div class="card"><div class="card-title">📋 Recent Activity</div><div id="dash-activity"></div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ PROJECTS ═══════════════ -->
+<div class="page" id="page-projects">
+  <div class="section-header">
+    <h3>🗂 Projects</h3>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="exportExcel('projects')">📥 Export</button>
+      <button class="btn btn-primary" onclick="openModal('projectModal')">➕ New Project</button>
+    </div>
+  </div>
+  <div class="filters-bar">
+    <input class="filter-select" id="proj-search" placeholder="🔍 Search..." oninput="renderProjects()" style="width:220px">
+    <select class="filter-select" id="proj-status-filter" onchange="renderProjects()">
+      <option value="">All Status</option>
+      <option>Active</option><option>On Hold</option><option>Completed</option><option>Cancelled</option>
+    </select>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Code</th><th>Name</th><th>Manager</th><th>Start</th><th>End</th><th>Budget</th><th>POs</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="proj-table"></tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══════════════ SUPPLIERS ═══════════════ -->
+<div class="page" id="page-suppliers">
+  <div class="section-header">
+    <h3>🏭 Suppliers</h3>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="exportExcel('suppliers')">📥 Export</button>
+      <button class="btn btn-outline" onclick="openImportModal('suppliers')">📂 Import</button>
+      <button class="btn btn-primary" onclick="openModal('supplierModal')">➕ New Supplier</button>
+    </div>
+  </div>
+  <div class="filters-bar">
+    <input class="filter-select" id="sup-search" placeholder="🔍 Search..." oninput="renderSuppliers()" style="width:220px">
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Name</th><th>Contact</th><th>Email</th><th>Phone</th><th>Country</th><th>Active POs</th><th>Total Value</th><th>Actions</th></tr></thead>
+    <tbody id="sup-table"></tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══════════════ RFQ ═══════════════ -->
+<div class="page" id="page-rfq">
+  <div class="section-header">
+    <h3>📄 RFQ</h3>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="exportExcel('rfq')">📥 Export</button>
+      <button class="btn btn-primary" onclick="openModal('rfqModal')">➕ New RFQ</button>
+    </div>
+  </div>
+  <div class="filters-bar">
+    <select class="filter-select" id="rfq-proj-filter" onchange="renderRFQ()"><option value="">All Projects</option></select>
+    <select class="filter-select" id="rfq-status-filter" onchange="renderRFQ()">
+      <option value="">All Status</option><option>Draft</option><option>Sent</option><option>Received</option><option>Evaluated</option><option>Awarded</option><option>Cancelled</option>
+    </select>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>RFQ #</th><th>Title</th><th>Project</th><th>Issue Date</th><th>Deadline</th><th>Value</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="rfq-table"></tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══════════════ PURCHASE ORDERS ═══════════════ -->
+<div class="page" id="page-orders">
+  <div class="section-header">
+    <h3>🛒 Purchase Orders</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-secondary btn-sm" onclick="exportExcel('orders')">📥 Export</button>
+      <button class="btn btn-outline btn-sm" onclick="openImportModal('orders')">📂 Import</button>
+      <button class="btn btn-outline btn-sm" onclick="openGantt('po')" style="background:linear-gradient(135deg,#1a1a3e,#2d2d5e);color:#fff;border:none">🗓 PO Gantt</button>
+      <button class="btn btn-primary" onclick="openModal('orderModal')">➕ New PO</button>
+    </div>
+  </div>
+  <div class="filters-bar">
+    <input class="filter-select" id="po-search" placeholder="🔍 Search..." oninput="renderOrders()" style="width:200px">
+    <select class="filter-select" id="po-proj-filter" onchange="renderOrders()"><option value="">All Projects</option></select>
+    <select class="filter-select" id="po-sup-filter" onchange="renderOrders()"><option value="">All Suppliers</option></select>
+    <select class="filter-select" id="po-status-filter" onchange="renderOrders()">
+      <option value="">All Status</option><option>Draft</option><option>Approved</option><option>Sent</option><option>Acknowledged</option><option>Delivered</option><option>Closed</option><option>Cancelled</option>
+    </select>
+  </div>
+  <!-- Bulk Bar -->
+  <div class="bulk-bar" id="po-bulk-bar">
+    <span style="font-weight:700;color:#92400e"><span id="po-sel-count">0</span> PO(s) selected</span>
+    <button class="btn btn-danger btn-sm" onclick="bulkDeletePOs()">🗑 Delete Selected</button>
+    <select class="filter-select" id="bulk-status-sel" style="padding:5px 10px;font-size:.8rem">
+      <option value="">-- Change Status --</option>
+      <option>Draft</option><option>Approved</option><option>Sent</option><option>Acknowledged</option><option>Delivered</option><option>Closed</option><option>Cancelled</option>
+    </select>
+    <button class="btn btn-secondary btn-sm" onclick="bulkChangeStatus()">🔄 Apply Status</button>
+    <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="clearPOSel()">✕ Clear</button>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr>
+      <th><input type="checkbox" id="po-sel-all" onclick="toggleSelAll(this)"></th>
+      <th>PO # <small style="color:#a5b4fc;font-weight:400">(click to view all lines)</small></th>
+      <th>Project</th><th>Supplier</th>
+      <th>PO Sent Date</th><th>Exp. Delivery</th><th>Exact Delivery</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody id="po-table"></tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══════════════ BOM ═══════════════ -->
+<div class="page" id="page-bom">
+  <div id="bom-list-section">
+    <div class="section-header">
+      <h3>📋 Bill of Materials</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="exportBOM()">📥 Export</button>
+        <button class="btn btn-outline btn-sm" onclick="openModal('bomImportModal')">📂 Import</button>
+        <button class="btn btn-primary" onclick="openModal('bomModal')">➕ New BOM</button>
+      </div>
+    </div>
+    <div class="kpi-grid" id="bom-kpis" style="grid-template-columns:repeat(5,1fr)"></div>
+    <div class="filters-bar">
+      <input class="filter-select" id="bom-search" placeholder="🔍 Search BOM..." oninput="renderBOM()" style="width:200px">
+      <select class="filter-select" id="bom-proj-filter" onchange="renderBOM()"><option value="">All Projects</option></select>
+      <select class="filter-select" id="bom-status-filter" onchange="renderBOM()">
+        <option value="">All Status</option><option>Draft</option><option>In Review</option><option>Released</option><option>Obsolete</option>
+      </select>
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>BOM #</th><th>Project</th><th>Description</th><th>Rev</th><th>Items</th><th>Released</th><th>Pending</th><th>Coverage</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody id="bom-table"></tbody>
+    </table></div></div>
+  </div>
+  <!-- BOM Detail -->
+  <div id="bom-detail-section" style="display:none">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="btn btn-outline btn-sm" onclick="closeBOMDetail()">← Back</button>
+      <h3 id="bom-detail-title" style="flex:1"></h3>
+      <button class="btn btn-secondary btn-sm" onclick="exportBOMDetail()">📥 Export</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('bomItemModal')">➕ Add Item</button>
+    </div>
+    <div class="card" id="bom-info-card" style="margin-bottom:14px"></div>
+    <div class="kpi-grid" id="bom-detail-kpis" style="grid-template-columns:repeat(4,1fr)"></div>
+    <div class="filters-bar">
+      <input class="filter-select" id="bom-item-search" placeholder="🔍 Search items..." oninput="renderBOMItems()" style="width:200px">
+      <select class="filter-select" id="bom-item-sup-filter" onchange="renderBOMItems()"><option value="">All Suppliers</option></select>
+      <select class="filter-select" id="bom-item-po-filter" onchange="renderBOMItems()">
+        <option value="">All PO Status</option>
+        <option value="released">✅ PO Released</option>
+        <option value="partial">⚠ Partial</option>
+        <option value="pending">🔴 PO Pending</option>
+      </select>
+    </div>
+    <div class="card"><div class="table-wrap"><table>
+      <thead><tr><th>Line #</th><th>Part No.</th><th>Description</th><th>Supplier</th><th>Req Qty</th><th>Unit</th><th>PO Status</th><th>Linked POs</th><th>PO Qty</th><th>Actions</th></tr></thead>
+      <tbody id="bom-items-table"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- ═══════════════ PROCUREMENT PLAN ═══════════════ -->
+<div class="page" id="page-procplan">
+  <div class="section-header">
+    <h3>📅 Procurement Plan</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-danger btn-sm" onclick="sendBreachEmailAll()">🚨 Breach Alert</button>
+      <button class="btn btn-secondary btn-sm" onclick="exportExcel('procplan')">📥 Export</button>
+      <button class="btn btn-outline btn-sm" onclick="openImportModal('procplan')">📂 Import</button>
+      <button class="btn btn-outline btn-sm" onclick="openGantt('plan')" style="background:linear-gradient(135deg,#1a1a3e,#2d2d5e);color:#fff;border:none">🗓 Gantt Chart</button>
+      <button class="btn btn-primary" onclick="openModal('procplanModal')">➕ Add Plan</button>
+    </div>
+  </div>
+  <div class="filters-bar">
+    <select class="filter-select" id="pp-proj-filter" onchange="renderProcPlan()"><option value="">All Projects</option></select>
+    <select class="filter-select" id="pp-status-filter" onchange="renderProcPlan()">
+      <option value="">All Status</option><option>Planned</option><option>In Progress</option><option>Delayed</option><option>Completed</option><option>Cancelled</option>
+    </select>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Plan #</th><th>Project</th><th>IFAT Date</th><th>FAT Date</th><th>Delivery Date</th><th>Budget</th><th>Currency</th><th>PO Breach</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="pp-table"></tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══════════════ CONTRACTS ═══════════════ -->
+<div class="page" id="page-contracts">
+  <div class="section-header">
+    <h3>📃 Contracts</h3>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="exportExcel('contracts')">📥 Export</button>
+      <button class="btn btn-primary" onclick="openModal('contractModal')">➕ New Contract</button>
+    </div>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Contract #</th><th>Title</th><th>Supplier</th><th>Value</th><th>Start</th><th>End</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="contract-table"></tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══════════════ REMINDERS ═══════════════ -->
+<div class="page" id="page-reminders">
+  <div class="section-header"><h3>🔔 Reminders</h3>
+    <button class="btn btn-primary" onclick="openModal('reminderModal')">➕ Add Reminder</button>
+  </div>
+  <div class="card"><div class="table-wrap"><table>
+    <thead><tr><th>Message</th><th>Due Date</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
+    <tbody id="reminder-table"></tbody>
+  </table></div></div>
+</div>
+
+<!-- ═══════════════ ACTIVITY LOG ═══════════════ -->
+<div class="page" id="page-activity">
+  <div class="section-header"><h3>🕒 Activity Log</h3>
+    <button class="btn btn-danger btn-sm" onclick="if(confirm('Clear all activity logs?')){data.activity=[];saveData();renderActivity();}">🗑 Clear</button>
+  </div>
+  <div class="card" id="activity-log"></div>
+</div>
+
+<!-- ═══════════════ SETTINGS ═══════════════ -->
+<div class="page" id="page-settings">
+  <div class="section-header"><h3>⚙ Settings & Email Alerts</h3></div>
+  <div class="dash-row">
+    <div class="card">
+      <div class="card-title">📧 Email Configuration</div>
+      <div class="alert alert-info">Uses <b>EmailJS</b> (free) to send real emails, or falls back to Outlook mailto.</div>
+      <div class="form-group" style="margin-bottom:12px"><label>Your Email *</label><input id="cfg-email" type="email" placeholder="you@in.abb.com"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>CC Email</label><input id="cfg-cc" type="email" placeholder="manager@abb.com"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>EmailJS Public Key</label><input id="cfg-pubkey" placeholder="your_public_key"></div>
+      <div class="form-group" style="margin-bottom:12px"><label>EmailJS Service ID</label><input id="cfg-service" placeholder="service_xxxxxxx"></div>
+      <div class="form-group" style="margin-bottom:16px"><label>EmailJS Template ID</label><input id="cfg-template" placeholder="template_xxxxxxx"></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="saveEmailConfig()">💾 Save</button>
+        <button class="btn btn-outline" onclick="testEmail()">📧 Test Email</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔔 Delivery Alert Preferences</div>
+      <div class="form-group" style="margin-bottom:12px"><label>Alert Threshold</label>
+        <select id="cfg-threshold" class="filter-select" style="width:100%">
+          <option value="0">On breach (PO date &gt; Plan date)</option>
+          <option value="7">7 days before breach</option>
+          <option value="14">14 days before breach</option>
+          <option value="30">30 days before breach</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label style="flex-direction:row;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" id="cfg-mailto-fallback" checked> Use Outlook if EmailJS not configured
+        </label>
+      </div>
+      <button class="btn btn-secondary" style="width:100%" onclick="runBreachCheck(true)">🔍 Run Delivery Check Now</button>
+      <div id="last-check-info" style="margin-top:12px;font-size:.8rem;color:var(--muted)"></div>
+    </div>
+  </div>
+  <!-- Breach Report -->
+  <div class="card">
+    <div class="card-title">🚨 Delivery Breach Report</div>
+    <div id="breach-report"><div class="empty-state"><div class="empty-icon">✅</div>Click "Run Delivery Check" to see breach report</div></div>
+  </div>
+</div>
+
+  </div><!-- end .content -->
+</div><!-- end .main -->
+
+<!-- ═══ ALL MODALS ═══ (all use .modal-overlay + .open class ONLY) -->
+
+<!-- PROJECT MODAL -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('projectModal')">✕</button>
+    <h3 id="projectModal-title">New Project</h3><input type="hidden" id="p-id">
+    <div class="form-row">
+      <div class="form-group"><label>Project Code *</label><input id="p-code" placeholder="e.g. IN27526001"></div>
+      <div class="form-group"><label>Project Name *</label><input id="p-name" placeholder="e.g. RGLNG Phase 2"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Manager</label><input id="p-manager" placeholder="Manager name"></div>
+      <div class="form-group"><label>Department</label><input id="p-dept" placeholder="Department"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Start Date</label><input type="date" id="p-start"></div>
+      <div class="form-group"><label>End Date</label><input type="date" id="p-end"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Budget</label><input type="number" id="p-budget" placeholder="0"></div>
+      <div class="form-group"><label>Currency</label>
+        <select id="p-currency"><option>USD</option><option>EUR</option><option>INR</option><option>GBP</option><option>AED</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Status</label>
+        <select id="p-status"><option>Active</option><option>On Hold</option><option>Completed</option><option>Cancelled</option></select>
+      </div>
+      <div class="form-group"><label>Color</label><input type="color" id="p-color" value="#6764f6" style="height:40px;padding:4px"></div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="p-desc" placeholder="Project description..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('projectModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProject()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUPPLIER MODAL -->
+<div class="modal-overlay" id="supplierModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('supplierModal')">✕</button>
+    <h3 id="supplierModal-title">New Supplier</h3><input type="hidden" id="s-id">
+    <div class="form-row">
+      <div class="form-group"><label>Supplier Name *</label><input id="s-name" placeholder="e.g. NIVOX TECHNOLOGIES"></div>
+      <div class="form-group"><label>Contact Person</label><input id="s-contact" placeholder="Contact name"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Email</label><input type="email" id="s-email" placeholder="supplier@email.com"></div>
+      <div class="form-group"><label>Phone</label><input id="s-phone" placeholder="+91 xxx xxx xxxx"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Country</label><input id="s-country" placeholder="India"></div>
+      <div class="form-group"><label>Category</label>
+        <select id="s-category"><option>General</option><option>Electrical</option><option>Mechanical</option><option>IT</option><option>Logistics</option><option>Services</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Notes</label><textarea id="s-notes" placeholder="Any notes..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('supplierModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveSupplier()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- RFQ MODAL -->
+<div class="modal-overlay" id="rfqModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('rfqModal')">✕</button>
+    <h3 id="rfqModal-title">New RFQ</h3><input type="hidden" id="r-id">
+    <div class="form-row">
+      <div class="form-group"><label>RFQ Title *</label><input id="r-title" placeholder="RFQ title"></div>
+      <div class="form-group"><label>Project</label><select id="r-project"><option value="">-- No Project --</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Issue Date</label><input type="date" id="r-issue"></div>
+      <div class="form-group"><label>Deadline</label><input type="date" id="r-deadline"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Estimated Value</label><input type="number" id="r-value" placeholder="0"></div>
+      <div class="form-group"><label>Currency</label>
+        <select id="r-currency"><option>USD</option><option>EUR</option><option>INR</option><option>GBP</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Status</label>
+        <select id="r-status"><option>Draft</option><option>Sent</option><option>Received</option><option>Evaluated</option><option>Awarded</option><option>Cancelled</option></select>
+      </div>
+      <div class="form-group"><label>Supplier</label><select id="r-supplier"><option value="">-- Select --</option></select></div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="r-desc" placeholder="RFQ description..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('rfqModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveRFQ()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- PURCHASE ORDER MODAL -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal" style="max-width:640px"><button class="modal-close" onclick="closeModal('orderModal')">✕</button>
+    <h3 id="orderModal-title">New Purchase Order</h3><input type="hidden" id="o-id">
+    <div class="form-row">
+      <div class="form-group"><label>Project</label><select id="o-project"><option value="">-- No Project --</option></select></div>
+      <div class="form-group"><label>Supplier *</label><select id="o-supplier"><option value="">-- Select Supplier --</option></select></div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px"><label>Item / Description *</label><input id="o-item" placeholder="e.g. FO Patch Panel SM 6 Port"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Quantity</label><input type="number" id="o-qty" placeholder="1" min="0"></div>
+      <div class="form-group"><label>Unit Price</label><input type="number" id="o-price" placeholder="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Currency</label>
+        <select id="o-currency"><option>USD</option><option>EUR</option><option>INR</option><option>GBP</option><option>AED</option></select>
+      </div>
+      <div class="form-group"><label>Category</label>
+        <select id="o-category"><option>Electrical</option><option>Mechanical</option><option>Raw Materials</option><option>IT & Software</option><option>Logistics</option><option>Services</option><option>Other</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>📅 PO Sent Date</label><input type="date" id="o-sent"></div>
+      <div class="form-group"><label>📦 Expected Delivery Date</label><input type="date" id="o-exp-delivery"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>✅ Exact Delivery Date <small style="color:var(--muted)">(actual)</small></label><input type="date" id="o-delivery"></div>
+      <div class="form-group"><label>Status</label>
+        <select id="o-status"><option>Draft</option><option>Approved</option><option>Sent</option><option>Acknowledged</option><option>Delivered</option><option>Closed</option><option>Cancelled</option></select>
+      </div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px"><label>Notes</label><textarea id="o-notes" placeholder="Any notes..." rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('orderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveOrder()">💾 Save PO</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOM MODAL -->
+<div class="modal-overlay" id="bomModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('bomModal')">✕</button>
+    <h3 id="bomModal-title">New BOM</h3><input type="hidden" id="bom-id">
+    <div class="form-row">
+      <div class="form-group"><label>BOM Number *</label><input id="bom-no" placeholder="e.g. BOM-2026-001"></div>
+      <div class="form-group"><label>Revision</label><input id="bom-rev" placeholder="A" style="width:80px"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Project *</label><select id="bom-project"><option value="">-- Select Project --</option></select></div>
+      <div class="form-group"><label>Status</label>
+        <select id="bom-status"><option>Draft</option><option>In Review</option><option>Released</option><option>Obsolete</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Description</label><textarea id="bom-desc" rows="2" placeholder="BOM description..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('bomModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBOM()">💾 Save BOM</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOM ITEM MODAL -->
+<div class="modal-overlay" id="bomItemModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('bomItemModal')">✕</button>
+    <h3 id="bomItemModal-title">Add Line Item</h3><input type="hidden" id="bi-id">
+    <div class="form-row">
+      <div class="form-group"><label>Line # *</label><input id="bi-line" placeholder="e.g. 001"></div>
+      <div class="form-group"><label>Part Number</label><input id="bi-part" placeholder="e.g. P-0001"></div>
+    </div>
+    <div class="form-group" style="margin-bottom:14px"><label>Description *</label><input id="bi-desc" placeholder="Item description"></div>
+    <div class="form-row">
+      <div class="form-group"><label>Preferred Supplier</label><select id="bi-supplier"><option value="">-- Any --</option></select></div>
+      <div class="form-group"><label>Category</label>
+        <select id="bi-category"><option>Electrical</option><option>Mechanical</option><option>Raw Materials</option><option>IT & Software</option><option>Logistics</option><option>Services</option><option>Other</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Required Qty *</label><input type="number" id="bi-qty" placeholder="1" min="0"></div>
+      <div class="form-group"><label>Unit</label>
+        <select id="bi-unit"><option>Nos</option><option>Mtrs</option><option>Kgs</option><option>Sets</option><option>Lots</option><option>Pairs</option><option>Rolls</option><option>Boxes</option><option>Units</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Notes</label><input id="bi-notes" placeholder="Specs or remarks"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('bomItemModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveBOMItem()">💾 Save Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- BOM IMPORT MODAL -->
+<div class="modal-overlay" id="bomImportModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('bomImportModal')">✕</button>
+    <h3>Import BOM from Excel</h3>
+    <div class="alert alert-info" style="font-size:.8rem">Columns: <code>BOM Number | Project Code | Description | Revision | BOM Status | Line No | Part No | Item Description | Supplier Name | Qty | Unit | Category | Notes</code></div>
+    <div class="form-group" style="margin-bottom:14px"><label>Select File (.xlsx)</label><input type="file" id="bom-import-file" accept=".xlsx,.xls,.csv" onchange="previewBOMImport(this)" style="padding:8px"></div>
+    <div id="bom-import-preview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="downloadBOMTemplate()">📄 Template</button>
+      <button class="btn btn-outline" onclick="closeModal('bomImportModal')">Cancel</button>
+      <button class="btn btn-primary" id="bom-import-btn" onclick="confirmBOMImport()" style="display:none">✅ Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- PROCUREMENT PLAN MODAL -->
+<div class="modal-overlay" id="procplanModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('procplanModal')">✕</button>
+    <h3 id="procplanModal-title">New Procurement Plan</h3><input type="hidden" id="pp-id">
+    <div class="form-row">
+      <div class="form-group"><label>Project *</label><select id="pp-project"><option value="">-- Select --</option></select></div>
+      <div class="form-group"><label>Status</label>
+        <select id="pp-status"><option>Planned</option><option>In Progress</option><option>Delayed</option><option>Completed</option><option>Cancelled</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>IFAT Date</label><input type="date" id="pp-ifat"></div>
+      <div class="form-group"><label>FAT Date</label><input type="date" id="pp-fat"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Delivery Date *</label><input type="date" id="pp-delivery"></div>
+      <div class="form-group"><label>Budget</label><input type="number" id="pp-budget" placeholder="0"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Currency</label>
+        <select id="pp-currency"><option>USD</option><option>EUR</option><option>INR</option><option>GBP</option><option>AED</option></select>
+      </div>
+      <div class="form-group"></div>
+    </div>
+    <div class="form-group"><label>Notes</label><textarea id="pp-notes" rows="2" placeholder="Notes..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('procplanModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProcPlan()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONTRACT MODAL -->
+<div class="modal-overlay" id="contractModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('contractModal')">✕</button>
+    <h3 id="contractModal-title">New Contract</h3><input type="hidden" id="c-id">
+    <div class="form-row">
+      <div class="form-group"><label>Title *</label><input id="c-title" placeholder="Contract title"></div>
+      <div class="form-group"><label>Supplier</label><select id="c-supplier"><option value="">-- Select --</option></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Value</label><input type="number" id="c-value" placeholder="0"></div>
+      <div class="form-group"><label>Currency</label>
+        <select id="c-currency"><option>USD</option><option>EUR</option><option>INR</option><option>GBP</option></select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Start Date</label><input type="date" id="c-start"></div>
+      <div class="form-group"><label>End Date</label><input type="date" id="c-end"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>Status</label>
+        <select id="c-status"><option>Draft</option><option>Active</option><option>Expired</option><option>Terminated</option></select>
+      </div>
+      <div class="form-group"></div>
+    </div>
+    <div class="form-group"><label>Notes</label><textarea id="c-notes" rows="2"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('contractModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveContract()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- REMINDER MODAL -->
+<div class="modal-overlay" id="reminderModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('reminderModal')">✕</button>
+    <h3 id="reminderModal-title">New Reminder</h3><input type="hidden" id="rem-id">
+    <div class="form-group" style="margin-bottom:14px"><label>Message *</label><textarea id="rem-msg" rows="2" placeholder="Reminder message..."></textarea></div>
+    <div class="form-row">
+      <div class="form-group"><label>Due Date</label><input type="date" id="rem-date"></div>
+      <div class="form-group"><label>Priority</label>
+        <select id="rem-priority"><option>Normal</option><option>High</option><option>Urgent</option></select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('reminderModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveReminder()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT MODAL (generic) -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal"><button class="modal-close" onclick="closeModal('importModal')">✕</button>
+    <h3>Import from Excel</h3><input type="hidden" id="import-type">
+    <div class="alert alert-info" id="import-hint" style="font-size:.8rem"></div>
+    <div class="form-group" style="margin-bottom:14px"><label>Select File (.xlsx)</label><input type="file" id="import-file" accept=".xlsx,.xls,.csv" onchange="previewImport(this)" style="padding:8px"></div>
+    <div id="import-preview"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="downloadTemplate()">📄 Template</button>
+      <button class="btn btn-outline" onclick="closeModal('importModal')">Cancel</button>
+      <button class="btn btn-primary" id="import-btn" onclick="confirmImport()" style="display:none">✅ Import</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ GANTT OVERLAYS (use .gantt-overlay + .open class) ═══ -->
+<!-- PLAN GANTT -->
+<div class="gantt-overlay" id="planGanttOverlay">
+  <div style="background:linear-gradient(135deg,#22223b,#2d2d5e);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-shrink:0;box-shadow:0 2px 12px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:1.4rem">🗓</span>
+      <div><div style="color:#fff;font-weight:800;font-size:1rem">Procurement Plan — Gantt Chart</div>
+        <div style="color:#a5b4fc;font-size:.75rem" id="plan-gantt-sub">Loading...</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;background:rgba(255,255,255,.08);border-radius:8px;overflow:hidden">
+        <button id="pgb-w" onclick="setGanttZoom('plan','week')" class="gz-btn">Week</button>
+        <button id="pgb-m" onclick="setGanttZoom('plan','month')" class="gz-btn gz-active">Month</button>
+        <button id="pgb-q" onclick="setGanttZoom('plan','quarter')" class="gz-btn">Quarter</button>
+      </div>
+      <select id="plan-gantt-proj" onchange="buildPlanGantt()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 10px;font-size:.8rem"><option value="">All Projects</option></select>
+      <button onclick="ganttScrollToday('plan-gantt-scroll','plan-gantt-min')" style="background:rgba(255,0,15,.2);border:1px solid rgba(255,0,15,.4);color:#ff6b6b;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:.8rem;font-weight:600">📍 Today</button>
+      <button onclick="closeGantt('planGanttOverlay')" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1rem;font-weight:700">✕</button>
+    </div>
+  </div>
+  <div style="background:#1a1a3e;padding:8px 24px;display:flex;gap:18px;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)">
+    <span style="color:#7c7fa8;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px">Legend:</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:22px;height:10px;border-radius:4px;background:#6764f6;display:inline-block"></span>IFAT</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:22px;height:10px;border-radius:4px;background:#f5a623;display:inline-block"></span>FAT</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:22px;height:10px;border-radius:4px;background:#FF000F;display:inline-block"></span>Delivery Deadline</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#22d3a5;border:2px solid #fff;display:inline-block"></span>PO On Track</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#FF000F;border:2px solid #fff;display:inline-block"></span>PO Breach</span>
+    <span style="color:#7c7fa8;font-size:.72rem;margin-left:auto">💡 Hover for details · Click to edit</span>
+  </div>
+  <div style="display:flex;flex:1;overflow:hidden">
+    <div id="plan-gantt-labels" style="width:260px;min-width:260px;background:#0f0f2e;border-right:2px solid rgba(103,100,246,.3);overflow-y:auto;overflow-x:hidden;flex-shrink:0">
+      <div style="height:54px;background:#0a0a20;border-bottom:2px solid rgba(103,100,246,.3);display:flex;align-items:center;padding:0 16px;color:#a5b4fc;font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:1px">Project</div>
+      <div id="plan-gantt-label-rows"></div>
+    </div>
+    <div id="plan-gantt-scroll" style="flex:1;overflow:auto">
+      <div id="plan-gantt-header" style="position:sticky;top:0;z-index:10;background:#0a0a20;border-bottom:2px solid rgba(103,100,246,.3)"></div>
+      <div id="plan-gantt-bars"></div>
+    </div>
+  </div>
+  <div id="plan-gantt-tip" style="display:none;position:fixed;z-index:1000;background:#1e1e4a;border:1px solid rgba(103,100,246,.4);color:#e2e8f0;border-radius:12px;padding:14px 16px;font-size:.8rem;pointer-events:none;max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,.5);line-height:1.8"></div>
+</div>
+
+<!-- PO GANTT -->
+<div class="gantt-overlay" id="poGanttOverlay">
+  <div style="background:linear-gradient(135deg,#1a1a3e,#22223b);padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;flex-shrink:0;box-shadow:0 2px 12px rgba(0,0,0,.4)">
+    <div style="display:flex;align-items:center;gap:14px">
+      <span style="font-size:1.4rem">📦</span>
+      <div><div style="color:#fff;font-weight:800;font-size:1rem">Purchase Orders — Supplier-wise Gantt</div>
+        <div style="color:#a5b4fc;font-size:.75rem" id="po-gantt-sub">Loading...</div></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <div style="display:flex;background:rgba(255,255,255,.08);border-radius:8px;overflow:hidden">
+        <button id="pogb-w" onclick="setGanttZoom('po','week')" class="gz-btn">Week</button>
+        <button id="pogb-m" onclick="setGanttZoom('po','month')" class="gz-btn gz-active">Month</button>
+        <button id="pogb-q" onclick="setGanttZoom('po','quarter')" class="gz-btn">Quarter</button>
+      </div>
+      <select id="po-gantt-sup" onchange="buildPOGantt()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 10px;font-size:.8rem"><option value="">All Suppliers</option></select>
+      <select id="po-gantt-proj" onchange="buildPOGantt()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 10px;font-size:.8rem"><option value="">All Projects</option></select>
+      <select id="po-gantt-status" onchange="buildPOGantt()" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#fff;border-radius:8px;padding:6px 10px;font-size:.8rem">
+        <option value="">All Status</option><option>Draft</option><option>Approved</option><option>Sent</option><option>Acknowledged</option><option>Delivered</option><option>Closed</option><option>Cancelled</option>
+      </select>
+      <button onclick="ganttScrollToday('po-gantt-scroll','po-gantt-min')" style="background:rgba(255,0,15,.2);border:1px solid rgba(255,0,15,.4);color:#ff6b6b;border-radius:8px;padding:6px 12px;cursor:pointer;font-size:.8rem;font-weight:600">📍 Today</button>
+      <button onclick="closeGantt('poGanttOverlay')" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:6px 14px;cursor:pointer;font-size:1rem;font-weight:700">✕</button>
+    </div>
+  </div>
+  <div style="background:#12122e;padding:8px 24px;display:flex;gap:18px;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid rgba(255,255,255,.06)">
+    <span style="color:#7c7fa8;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1px">Legend:</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:28px;height:10px;border-radius:4px;background:#6764f6;display:inline-block"></span>PO Duration bar</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#a5b4fc;border:2px solid #fff;display:inline-block"></span>Sent Date</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#f5a623;border:2px solid #fff;display:inline-block"></span>Exp. Delivery</span>
+    <span style="color:#c7d2fe;font-size:.76rem;display:flex;align-items:center;gap:5px"><span style="width:12px;height:12px;border-radius:50%;background:#22d3a5;border:2px solid #fff;display:inline-block"></span>Exact Delivery</span>
+    <span style="color:#7c7fa8;font-size:.72rem;margin-left:auto">💡 Hover for details · Click bar to edit PO</span>
+  </div>
+  <div style="display:flex;flex:1;overflow:hidden">
+    <div id="po-gantt-labels" style="width:280px;min-width:280px;background:#0a0a20;border-right:2px solid rgba(103,100,246,.3);overflow-y:auto;overflow-x:hidden;flex-shrink:0">
+      <div style="height:54px;background:#060614;border-bottom:2px solid rgba(103,100,246,.3);display:flex;align-items:center;padding:0 16px;color:#a5b4fc;font-weight:700;font-size:.78rem;text-transform:uppercase;letter-spacing:1px">Supplier / PO</div>
+      <div id="po-gantt-label-rows"></div>
+    </div>
+    <div id="po-gantt-scroll" style="flex:1;overflow:auto">
+      <div id="po-gantt-header" style="position:sticky;top:0;z-index:10;background:#060614;border-bottom:2px solid rgba(103,100,246,.3)"></div>
+      <div id="po-gantt-bars"></div>
+    </div>
+  </div>
+  <div id="po-gantt-tip" style="display:none;position:fixed;z-index:1000;background:#1e1e4a;border:1px solid rgba(103,100,246,.4);color:#e2e8f0;border-radius:12px;padding:14px 16px;font-size:.8rem;pointer-events:none;max-width:320px;box-shadow:0 8px 32px rgba(0,0,0,.5);line-height:1.8"></div>
+</div>
+<style>
+.gz-btn{padding:6px 14px;border:none;background:transparent;color:#a5b4fc;cursor:pointer;font-size:.8rem;font-weight:600;}
+.gz-active{background:#6764f6!important;color:#fff!important;}
+
+/* PO Hover Tooltip */
+.po-tip-wrap { position: relative; display: inline-block; }
+.po-tip-wrap .po-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  background: #1e1e4a;
+  border: 1px solid rgba(103,100,246,.5);
+  color: #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: .8rem;
+  pointer-events: none;
+  min-width: 260px;
+  max-width: 340px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  line-height: 1.9;
+}
+.po-tip-wrap:hover .po-tooltip { display: block; }
+.po-id-link {
+  color: var(--abb-lilac);
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  font-size: .85rem;
+}
+
+
+/* PO Lines Modal */
+#po-lines-body tr { border-bottom: 1px solid rgba(103,100,246,.1); transition: background .15s; }
+#po-lines-body tr:hover { background: rgba(103,100,246,.07); }
+#po-lines-body td { padding: 10px 12px; font-size: .82rem; color: #e2e8f0; }
+.po-lines-summary { background: rgba(34,211,165,.08); border: 1px solid rgba(34,211,165,.25); border-radius:10px; padding:14px 18px; margin-bottom:16px; display:flex; gap:24px; flex-wrap:wrap; }
+.po-lines-summary .sm-label { font-size:.7rem; color:#7c7fa8; margin-bottom:2px; }
+.po-lines-summary .sm-val   { font-size:.9rem; font-weight:800; color:#e2e8f0; }
+
+</style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- QUICK DATE EDIT MODAL -->
+<div class="modal-overlay" id="quickDateModal">
+  <div class="modal" style="max-width:480px">
+    <button class="modal-close" onclick="closeModal('quickDateModal')">✕</button>
+    <h3>📅 Quick Date Edit</h3>
+    <div id="qd-po-info" style="background:#f8f9fe;border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:.85rem;border:1px solid var(--border)"></div>
+    <input type="hidden" id="qd-id">
+    <div class="form-group" style="margin-bottom:14px">
+      <label>📤 PO Sent Date</label>
+      <input type="date" id="qd-sent">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label>📦 Expected Delivery Date</label>
+      <input type="date" id="qd-exp">
+    </div>
+    <div class="form-group" style="margin-bottom:18px">
+      <label>✅ Exact Delivery Date <small style="color:var(--muted)">(actual received date)</small></label>
+      <input type="date" id="qd-delivery">
+    </div>
+    <div class="alert alert-info" style="font-size:.78rem;padding:8px 12px;margin-bottom:14px">
+      💡 Leave blank to keep existing date unchanged
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('quickDateModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveQuickDates()">💾 Save Dates</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- ═══════════════ PO LINE ITEMS MODAL ═══════════════ -->
+<div class="modal-overlay" id="poLinesModal">
+  <div class="modal" style="max-width:780px;max-height:85vh;display:flex;flex-direction:column">
+    <button class="modal-close" onclick="closeModal('poLinesModal')">✕</button>
+    <div id="po-lines-header" style="margin-bottom:16px"></div>
+    <div id="po-lines-note" style="display:none;background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.4);border-radius:8px;padding:9px 14px;margin-bottom:12px;font-size:.78rem;color:#f5a623">
+      ⚠️ <b>Item descriptions are empty</b> in the source file. Add an <b>"Item"</b> or <b>"Short Text"</b> column to your Excel file and re-import to see descriptions.
+    </div>
+    <div style="overflow-y:auto;flex:1">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:rgba(103,100,246,.12);border-bottom:2px solid rgba(103,100,246,.3)">
+            <th style="padding:10px 12px;text-align:left;font-size:.78rem;color:#a5b4fc;font-weight:700">#</th>
+            <th style="padding:10px 12px;text-align:left;font-size:.78rem;color:#a5b4fc;font-weight:700">Item / Description</th>
+            <th style="padding:10px 12px;text-align:center;font-size:.78rem;color:#a5b4fc;font-weight:700">Qty</th>
+            <th style="padding:10px 12px;text-align:right;font-size:.78rem;color:#a5b4fc;font-weight:700">Unit Price</th>
+            <th style="padding:10px 12px;text-align:right;font-size:.78rem;color:#a5b4fc;font-weight:700">Total</th>
+            <th style="padding:10px 12px;text-align:center;font-size:.78rem;color:#a5b4fc;font-weight:700">Category</th>
+          </tr>
+        </thead>
+        <tbody id="po-lines-body"></tbody>
+        <tfoot id="po-lines-footer"></tfoot>
+      </table>
+    </div>
+    <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn btn-outline" onclick="closeModal('poLinesModal')">Close</button>
+      <button class="btn btn-primary" id="po-lines-edit-btn">✏ Edit PO</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- ═══════════════ IFAT BREACH DETAIL MODAL ═══════════════ -->
+<div class="modal-overlay" id="ifatDetailModal">
+  <div class="modal" style="max-width:820px;max-height:88vh;display:flex;flex-direction:column">
+    <button class="modal-close" onclick="document.getElementById('ifatDetailModal').classList.remove('open')">✕</button>
+    <h3 style="margin-bottom:4px">🔍 IFAT Breach Analysis</h3>
+    <p style="color:var(--muted);font-size:.78rem;margin-bottom:14px">
+      🟢 Safe = PO delivery ≤ IFAT − 5 days &nbsp;|&nbsp; 
+      🟡 At Risk = within 5-day buffer &nbsp;|&nbsp; 
+      🔴 Breach = PO delivery after IFAT
+    </p>
+    <div style="overflow-y:auto;flex:1">
+      <div id="ifat-detail-body"></div>
+    </div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn btn-outline" onclick="document.getElementById('ifatDetailModal').classList.remove('open')">Close</button>
+    </div>
+  </div>
+</div>
+
+
+<script>
+
+
+
+
+
+
+
+
+
+// ══════════════════════════════════════════
+//  DATA STORE
+// ══════════════════════════════════════════
+const STORAGE_KEY = 'abbProcCRM_v4';
+let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {
+  projects:[], suppliers:[], rfqs:[], orders:[], boms:[], procplans:[], contracts:[], reminders:[], activity:[]
+};
+if(!data.projects)  data.projects=[];
+if(!data.suppliers) data.suppliers=[];
+if(!data.rfqs)      data.rfqs=[];
+if(!data.orders)    data.orders=[];
+if(!data.boms)      data.boms=[];
+if(!data.procplans) data.procplans=[];
+if(!data.contracts) data.contracts=[];
+if(!data.reminders) data.reminders=[];
+if(!data.activity)  data.activity=[];
+
+let nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
+function saveData(){ data.nextId=nextId; localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+// ══════════════════════════════════════════
+//  MODAL SYSTEM (all use .open class ONLY)
+// ══════════════════════════════════════════
+function openModal(id){
+  fillDropdowns();
+  document.getElementById(id).classList.add('open');
+}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+}
+// Close on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click', e=>{ if(e.target===m) closeModal(m.id); });
+});
+
+// ══════════════════════════════════════════
+//  GANTT OVERLAYS (.gantt-overlay + .open)
+// ══════════════════════════════════════════
+function openGantt(type){
+  fillDropdowns();
+  if(type==='plan'){
+    document.getElementById('planGanttOverlay').classList.add('open');
+    buildPlanGantt();
+  } else {
+    document.getElementById('poGanttOverlay').classList.add('open');
+    buildPOGantt();
+  }
+  document.body.style.overflow='hidden';
+}
+function closeGantt(id){
+  document.getElementById(id).classList.remove('open');
+  document.body.style.overflow='';
+}
+// Close gantt overlays on backdrop click
+document.querySelectorAll('.gantt-overlay').forEach(g=>{
+  g.addEventListener('click', e=>{ if(e.target===g) closeGantt(g.id); });
+});
+// ESC key
+document.addEventListener('keydown', e=>{
+  if(e.key!=='Escape') return;
+  document.querySelectorAll('.gantt-overlay.open').forEach(g=>closeGantt(g.id));
+  document.querySelectorAll('.modal-overlay.open').forEach(m=>closeModal(m.id));
+});
+
+// ══════════════════════════════════════════
+//  PAGE NAVIGATION
+// ══════════════════════════════════════════
+const PAGE_TITLES = {
+  dashboard:'📊 Dashboard', projects:'🗂 Projects', suppliers:'🏭 Suppliers',
+  rfq:'📄 RFQ', orders:'🛒 Purchase Orders', bom:'📋 Bill of Materials',
+  procplan:'📅 Procurement Plan', contracts:'📃 Contracts',
+  reminders:'🔔 Reminders', activity:'🕒 Activity Log', settings:'⚙ Settings'
+};
+function showPage(id, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pg=document.getElementById('page-'+id);
+  if(pg) pg.classList.add('active');
+  if(el) el.classList.add('active');
+  document.getElementById('page-title').textContent = PAGE_TITLES[id]||'';
+  // Re-render on switch
+  const renders={
+    dashboard:renderDashboard, projects:renderProjects, suppliers:renderSuppliers,
+    rfq:renderRFQ, orders:renderOrders, bom:renderBOM,
+    procplan:renderProcPlan, contracts:renderContracts,
+    reminders:renderReminders, activity:renderActivity, settings:renderSettings
+  };
+  if(renders[id]) renders[id]();
+}
+
+// ══════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════
+function toast(msg, color='#22d3a5'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.style.background=color; t.style.opacity='1';
+  setTimeout(()=>t.style.opacity='0',2800);
+}
+function logActivity(msg, color='#6764f6'){
+  data.activity.unshift({msg,color,time:new Date().toLocaleString()});
+  if(data.activity.length>200) data.activity.pop();
+}
+function fmtDate(d){ if(!d) return '—'; try{const x=new Date(d+'T00:00:00'); return x.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}catch{return d;} }
+function fmtMoney(v,curr='USD'){ return (curr==='INR'?'₹':curr==='EUR'?'€':curr==='GBP'?'£':'$')+Number(v||0).toLocaleString(undefined,{maximumFractionDigits:0}); }
+function daysLeft(d){ if(!d) return null; return Math.ceil((new Date(d+'T00:00:00')-new Date())/86400000); }
+function getProjById(id)   { return data.projects.find(p=>p.id===id); }
+function getSupById(id)    { return data.suppliers.find(s=>s.id===id); }
+function getProjName(id)   { return getProjById(id)?.name||'—'; }
+function getProjCode(id)   { return getProjById(id)?.code||'—'; }
+function getSupName(id)    { return getSupById(id)?.name||'—'; }
+function statusBadge(st){
+  const map={Draft:'badge-gray','In Progress':'badge-blue','In Review':'badge-yellow',Active:'badge-green',
+    Approved:'badge-green',Sent:'badge-blue',Acknowledged:'badge-purple',Delivered:'badge-green',
+    Released:'badge-green',Closed:'badge-gray',Cancelled:'badge-red',Delayed:'badge-red',
+    Planned:'badge-blue',Completed:'badge-green','On Hold':'badge-yellow',Obsolete:'badge-gray',
+    Awarded:'badge-green',Evaluated:'badge-yellow',Received:'badge-blue'};
+  return `<span class="badge ${map[st]||'badge-gray'}">${st||'—'}</span>`;
+}
+function projBadge(id){ const p=getProjById(id); if(!p) return '<span class="badge badge-gray">—</span>';
+  return `<span class="badge badge-purple" title="${p.name}"><span class="color-dot" style="background:${p.color||'#6764f6'}"></span>${p.code}</span>`; }
+
+// Fill all dropdowns
+function fillDropdowns(){
+  const pOpts='<option value="">-- No Project --</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join('');
+  const sOpts='<option value="">-- Select Supplier --</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const sAny='<option value="">-- Any --</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  ['o-project','r-project','pp-project'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=pOpts;el.value=v;}});
+  ['bom-project'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML='<option value="">-- Select Project --</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join('');el.value=v;}});
+  ['o-supplier','r-supplier','c-supplier'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=sOpts;el.value=v;}});
+  ['bi-supplier'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=sAny;el.value=v;}});
+  // Filter selects
+  ['po-proj-filter','rfq-proj-filter','pp-proj-filter','bom-proj-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;
+  });
+  ['po-sup-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;
+  });
+  ['bom-item-sup-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;
+  });
+  // Gantt filters
+  ['plan-gantt-proj'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;});
+  ['po-gantt-sup'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;});
+  ['po-gantt-proj'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;});
+}
+
+// ══════════════════════════════════════════
+//  TOPBAR DATE
+// ══════════════════════════════════════════
+document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+
+
+
+// ══ DASHBOARD ══
+function renderDashboard(){
+  fillDropdowns();
+  const totalPOs=data.orders.length, totalSup=data.suppliers.length, totalProj=data.projects.length;
+  const totalVal=data.orders.reduce((s,o)=>s+(o.amount||0),0);
+  const pendingPOs=data.orders.filter(o=>['Draft','Approved','Sent','Acknowledged'].includes(o.status)).length;
+  document.getElementById('dash-kpis').innerHTML=`
+    <div class="kpi-card" style="border-top:4px solid var(--abb-lilac)"><div class="kpi-icon">🛒</div><div class="kpi-info"><div class="kpi-value">${totalPOs}</div><div class="kpi-label">Total POs</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #22d3a5"><div class="kpi-icon">💰</div><div class="kpi-info"><div class="kpi-value">$${(totalVal/1000).toFixed(0)}K</div><div class="kpi-label">Total PO Value</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid var(--abb-red)"><div class="kpi-icon">⏳</div><div class="kpi-info"><div class="kpi-value">${pendingPOs}</div><div class="kpi-label">Pending POs</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #f5a623"><div class="kpi-icon">🏭</div><div class="kpi-info"><div class="kpi-value">${totalSup}</div><div class="kpi-label">Suppliers</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #06b6d4"><div class="kpi-icon">🗂</div><div class="kpi-info"><div class="kpi-value">${totalProj}</div><div class="kpi-label">Projects</div></div></div>`;
+  // Alerts
+  const breaches=getBreaches();
+  const alertEl=document.getElementById('dash-alerts');
+  alertEl.innerHTML=breaches.length?`<div class="alert alert-danger">🚨 <b>${breaches.length}</b> PO delivery breach(es) detected! <button class="btn btn-danger btn-sm" onclick="showPage('settings',document.querySelectorAll('.nav-item')[10])">View Report</button> <button class="btn btn-outline btn-sm" onclick="openOutlookAlert()">📧 Email Alert</button></div>`:'';
+  document.getElementById('breach-alert-top').style.display=breaches.length?'':'none';
+  document.getElementById('breach-alert-top').textContent=breaches.length?`🚨 ${breaches.length} breach(es)`:'';
+  // PO by status
+  const statCounts={};
+  data.orders.forEach(o=>{statCounts[o.status]=(statCounts[o.status]||0)+1;});
+  const colors={Draft:'#94a3b8',Approved:'#22d3a5',Sent:'#6764f6',Acknowledged:'#a78bfa',Delivered:'#22d3a5',Closed:'#64748b',Cancelled:'#FF000F'};
+  document.getElementById('dash-po-status').innerHTML=Object.entries(statCounts).map(([s,c])=>`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="min-width:110px;font-size:.82rem;color:var(--muted)">${s}</span>
+      <div class="prog-bar" style="flex:1"><div class="prog-fill" style="width:${Math.round(c/totalPOs*100)}%;background:${colors[s]||'#94a3b8'}"></div></div>
+      <span style="font-weight:700;font-size:.85rem;min-width:24px;text-align:right">${c}</span>
+    </div>`).join('')||'<div class="empty-state"><div class="empty-icon">📦</div>No POs yet</div>';
+  // Upcoming deliveries
+  const today=new Date(); today.setHours(0,0,0,0);
+  const upcoming=data.orders.filter(o=>o.expDelivery&&!o.delivery&&!['Cancelled','Closed'].includes(o.status)).map(o=>({...o,dl:daysLeft(o.expDelivery)})).sort((a,b)=>a.dl-b.dl).slice(0,6);
+  document.getElementById('dash-deliveries').innerHTML=upcoming.length?upcoming.map(o=>{const dl=o.dl; const c=dl<0?'#FF000F':dl<=7?'#f5a623':'#22d3a5'; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><div><div style="font-weight:700;font-size:.83rem">${o.id}</div><div style="font-size:.75rem;color:var(--muted)">${o.item?.slice(0,30)||''}</div></div><span style="background:${c}22;color:${c};border:1px solid ${c}55;border-radius:6px;padding:3px 8px;font-size:.72rem;font-weight:700">${dl<0?Math.abs(dl)+'d overdue':dl===0?'Today':dl+'d left'}</span></div>`;}).join(''):'<div class="empty-state"><div class="empty-icon">✅</div>No upcoming deliveries</div>';
+  // Top suppliers
+  const supVals={};
+  data.orders.forEach(o=>{if(o.supplier)supVals[o.supplier]=(supVals[o.supplier]||0)+(o.amount||0);});
+  const topSups=Object.entries(supVals).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  const maxVal=topSups[0]?.[1]||1;
+  document.getElementById('dash-suppliers').innerHTML=topSups.length?topSups.map(([id,v])=>`
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+      <span style="min-width:130px;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${getSupName(id)}</span>
+      <div class="prog-bar" style="flex:1"><div class="prog-fill" style="width:${Math.round(v/maxVal*100)}%;background:var(--abb-lilac)"></div></div>
+      <span style="font-size:.82rem;font-weight:700;min-width:70px;text-align:right">$${(v/1000).toFixed(1)}K</span>
+    </div>`).join(''):'<div class="empty-state"><div class="empty-icon">🏭</div>No data yet</div>';
+  // Recent activity
+  document.getElementById('dash-activity').innerHTML=data.activity.slice(0,8).map(a=>`
+    <div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);align-items:flex-start">
+      <span style="width:8px;height:8px;border-radius:50%;background:${a.color||'#6764f6'};flex-shrink:0;margin-top:5px"></span>
+      <div style="flex:1"><div style="font-size:.82rem">${a.msg}</div><div style="font-size:.72rem;color:var(--muted)">${a.time}</div></div>
+    </div>`).join('')||'<div class="empty-state" style="padding:20px"><div class="empty-icon">🕒</div>No activity yet</div>';
+}
+
+// ══ PROJECTS ══
+function renderProjects(){
+  fillDropdowns();
+  const search=(document.getElementById('proj-search')?.value||'').toLowerCase();
+  const stF=document.getElementById('proj-status-filter')?.value||'';
+  const rows=data.projects.filter(p=>(!stF||p.status===stF)&&(!search||(p.code+p.name+p.manager).toLowerCase().includes(search)));
+  const tb=document.getElementById('proj-table');
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🗂</div>No projects. Click ➕ to add.</div></td></tr>`;return;}
+  tb.innerHTML=rows.map(p=>{
+    const pos=data.orders.filter(o=>o.project===p.id);
+    return `<tr>
+      <td><span class="color-dot" style="background:${p.color||'#6764f6'}"></span><b>${p.code}</b></td>
+      <td>${p.name}</td><td>${p.manager||'—'}</td><td>${fmtDate(p.start)}</td><td>${fmtDate(p.end)}</td>
+      <td>${fmtMoney(p.budget,p.currency)}</td>
+      <td><span class="badge badge-blue">${pos.length}</span></td>
+      <td>${statusBadge(p.status)}</td>
+      <td><div class="action-btns">
+        <button class="btn btn-outline btn-sm" onclick="editProject('${p.id}')">✏</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">🗑</button>
+      </div></td></tr>`;}).join('');
+}
+function openModalProject(){document.getElementById('projectModal-title').textContent='New Project';document.getElementById('p-id').value='';['p-code','p-name','p-manager','p-dept','p-budget','p-desc'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});['p-start','p-end'].forEach(id=>{const e=document.getElementById(id);if(e)e.value='';});document.getElementById('p-status').value='Active';document.getElementById('p-color').value='#6764f6';openModal('projectModal');}
+function editProject(id){const p=getProjById(id);if(!p)return;document.getElementById('projectModal-title').textContent='Edit Project';document.getElementById('p-id').value=p.id;document.getElementById('p-code').value=p.code;document.getElementById('p-name').value=p.name;document.getElementById('p-manager').value=p.manager||'';document.getElementById('p-dept').value=p.dept||'';document.getElementById('p-start').value=p.start||'';document.getElementById('p-end').value=p.end||'';document.getElementById('p-budget').value=p.budget||'';document.getElementById('p-currency').value=p.currency||'USD';document.getElementById('p-status').value=p.status||'Active';document.getElementById('p-color').value=p.color||'#6764f6';document.getElementById('p-desc').value=p.desc||'';openModal('projectModal');}
+function saveProject(){const code=document.getElementById('p-code').value.trim(),name=document.getElementById('p-name').value.trim();if(!code||!name){toast('⚠ Code and Name required','#FF000F');return;}const editId=document.getElementById('p-id').value;const proj={id:editId||('P'+String(nextId.p++).padStart(3,'0')),code,name,manager:document.getElementById('p-manager').value,dept:document.getElementById('p-dept').value,start:document.getElementById('p-start').value,end:document.getElementById('p-end').value,budget:parseFloat(document.getElementById('p-budget').value)||0,currency:document.getElementById('p-currency').value,status:document.getElementById('p-status').value,color:document.getElementById('p-color').value,desc:document.getElementById('p-desc').value,createdAt:editId?(getProjById(editId)?.createdAt||new Date().toISOString()):new Date().toISOString()};if(editId){const i=data.projects.findIndex(x=>x.id===editId);data.projects[i]=proj;logActivity(`✏ Project updated: <b>${proj.code}</b>`);}else{data.projects.push(proj);logActivity(`➕ Project created: <b>${proj.code}</b>`);}saveData();closeModal('projectModal');renderProjects();toast('✅ Project saved');}
+function deleteProject(id){const p=getProjById(id);if(!confirm(`Delete project ${p?.code}?`))return;data.projects=data.projects.filter(x=>x.id!==id);logActivity(`🗑 Project deleted: <b>${p?.code}</b>`,'#FF000F');saveData();renderProjects();toast('🗑 Deleted','#FF000F');}
+
+// ══ SUPPLIERS ══
+function renderSuppliers(){
+  fillDropdowns();
+  const search=(document.getElementById('sup-search')?.value||'').toLowerCase();
+  const rows=data.suppliers.filter(s=>!search||(s.name+s.contact+s.country).toLowerCase().includes(search));
+  const tb=document.getElementById('sup-table');
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">🏭</div>No suppliers. Click ➕ to add.</div></td></tr>`;return;}
+  tb.innerHTML=rows.map(s=>{
+    const pos=data.orders.filter(o=>o.supplier===s.id&&['Draft','Approved','Sent','Acknowledged'].includes(o.status));
+    const totVal=data.orders.filter(o=>o.supplier===s.id).reduce((sum,o)=>sum+(o.amount||0),0);
+    return `<tr><td><b>${s.name}</b></td><td>${s.contact||'—'}</td><td><a href="mailto:${s.email}" style="color:var(--abb-lilac)">${s.email||'—'}</a></td><td>${s.phone||'—'}</td><td>${s.country||'—'}</td><td><span class="badge badge-blue">${pos.length}</span></td><td>${fmtMoney(totVal)}</td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="editSupplier('${s.id}')">✏</button><button class="btn btn-danger btn-sm" onclick="deleteSupplier('${s.id}')">🗑</button></div></td></tr>`;}).join('');
+}
+function editSupplier(id){const s=getSupById(id);if(!s)return;document.getElementById('supplierModal-title').textContent='Edit Supplier';document.getElementById('s-id').value=s.id;document.getElementById('s-name').value=s.name;document.getElementById('s-contact').value=s.contact||'';document.getElementById('s-email').value=s.email||'';document.getElementById('s-phone').value=s.phone||'';document.getElementById('s-country').value=s.country||'';document.getElementById('s-category').value=s.category||'General';document.getElementById('s-notes').value=s.notes||'';openModal('supplierModal');}
+function saveSupplier(){const name=document.getElementById('s-name').value.trim();if(!name){toast('⚠ Name required','#FF000F');return;}const editId=document.getElementById('s-id').value;const sup={id:editId||('S'+String(nextId.s++).padStart(3,'0')),name,contact:document.getElementById('s-contact').value,email:document.getElementById('s-email').value,phone:document.getElementById('s-phone').value,country:document.getElementById('s-country').value,category:document.getElementById('s-category').value,notes:document.getElementById('s-notes').value,createdAt:editId?(getSupById(editId)?.createdAt||new Date().toISOString()):new Date().toISOString()};if(editId){const i=data.suppliers.findIndex(x=>x.id===editId);data.suppliers[i]=sup;logActivity(`✏ Supplier updated: <b>${sup.name}</b>`);}else{data.suppliers.push(sup);logActivity(`➕ Supplier added: <b>${sup.name}</b>`);}saveData();closeModal('supplierModal');renderSuppliers();toast('✅ Saved');}
+function deleteSupplier(id){const s=getSupById(id);if(!confirm(`Delete ${s?.name}?`))return;data.suppliers=data.suppliers.filter(x=>x.id!==id);logActivity(`🗑 Supplier deleted: <b>${s?.name}</b>`,'#FF000F');saveData();renderSuppliers();toast('🗑 Deleted','#FF000F');}
+
+// ══ RFQ ══
+function renderRFQ(){
+  fillDropdowns();
+  const projF=document.getElementById('rfq-proj-filter')?.value||'',stF=document.getElementById('rfq-status-filter')?.value||'';
+  const rows=data.rfqs.filter(r=>(!projF||r.project===projF)&&(!stF||r.status===stF));
+  const tb=document.getElementById('rfq-table');
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📄</div>No RFQs. Click ➕ to add.</div></td></tr>`;return;}
+  tb.innerHTML=rows.map(r=>`<tr><td><b>${r.id}</b></td><td>${r.title}</td><td>${projBadge(r.project)}</td><td>${fmtDate(r.issue)}</td><td>${fmtDate(r.deadline)}</td><td>${fmtMoney(r.value,r.currency)}</td><td>${statusBadge(r.status)}</td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="editRFQ('${r.id}')">✏</button><button class="btn btn-danger btn-sm" onclick="deleteRFQ('${r.id}')">🗑</button></div></td></tr>`).join('');
+}
+function editRFQ(id){const r=data.rfqs.find(x=>x.id===id);if(!r)return;document.getElementById('rfqModal-title').textContent='Edit RFQ';document.getElementById('r-id').value=r.id;document.getElementById('r-title').value=r.title;document.getElementById('r-issue').value=r.issue||'';document.getElementById('r-deadline').value=r.deadline||'';document.getElementById('r-value').value=r.value||'';document.getElementById('r-currency').value=r.currency||'USD';document.getElementById('r-status').value=r.status||'Draft';document.getElementById('r-desc').value=r.desc||'';fillDropdowns();document.getElementById('r-project').value=r.project||'';document.getElementById('r-supplier').value=r.supplier||'';openModal('rfqModal');}
+function saveRFQ(){const title=document.getElementById('r-title').value.trim();if(!title){toast('⚠ Title required','#FF000F');return;}const editId=document.getElementById('r-id').value;const rfq={id:editId||('RFQ'+String(nextId.r++).padStart(4,'0')),title,project:document.getElementById('r-project').value,supplier:document.getElementById('r-supplier').value,issue:document.getElementById('r-issue').value,deadline:document.getElementById('r-deadline').value,value:parseFloat(document.getElementById('r-value').value)||0,currency:document.getElementById('r-currency').value,status:document.getElementById('r-status').value,desc:document.getElementById('r-desc').value};if(editId){const i=data.rfqs.findIndex(x=>x.id===editId);data.rfqs[i]=rfq;logActivity(`✏ RFQ updated: <b>${rfq.id}</b>`);}else{data.rfqs.push(rfq);logActivity(`➕ RFQ created: <b>${rfq.id}</b>`);}saveData();closeModal('rfqModal');renderRFQ();toast('✅ Saved');}
+function deleteRFQ(id){if(!confirm('Delete RFQ?'))return;data.rfqs=data.rfqs.filter(x=>x.id!==id);saveData();renderRFQ();toast('🗑 Deleted','#FF000F');}
+
+// ══ CONTRACTS ══
+function renderContracts(){
+  fillDropdowns();
+  const rows=data.contracts;
+  const tb=document.getElementById('contract-table');
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📃</div>No contracts.</div></td></tr>`;return;}
+  tb.innerHTML=rows.map(c=>`<tr><td><b>${c.id}</b></td><td>${c.title}</td><td>${getSupName(c.supplier)}</td><td>${fmtMoney(c.value,c.currency)}</td><td>${fmtDate(c.start)}</td><td>${fmtDate(c.end)}</td><td>${statusBadge(c.status)}</td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="editContract('${c.id}')">✏</button><button class="btn btn-danger btn-sm" onclick="deleteContract('${c.id}')">🗑</button></div></td></tr>`).join('');
+}
+function editContract(id){const c=data.contracts.find(x=>x.id===id);if(!c)return;document.getElementById('contractModal-title').textContent='Edit Contract';document.getElementById('c-id').value=c.id;document.getElementById('c-title').value=c.title;document.getElementById('c-value').value=c.value||'';document.getElementById('c-currency').value=c.currency||'USD';document.getElementById('c-start').value=c.start||'';document.getElementById('c-end').value=c.end||'';document.getElementById('c-status').value=c.status||'Draft';document.getElementById('c-notes').value=c.notes||'';fillDropdowns();document.getElementById('c-supplier').value=c.supplier||'';openModal('contractModal');}
+function saveContract(){const title=document.getElementById('c-title').value.trim();if(!title){toast('⚠ Title required','#FF000F');return;}const editId=document.getElementById('c-id').value;const con={id:editId||('C'+String(nextId.c++).padStart(3,'0')),title,supplier:document.getElementById('c-supplier').value,value:parseFloat(document.getElementById('c-value').value)||0,currency:document.getElementById('c-currency').value,start:document.getElementById('c-start').value,end:document.getElementById('c-end').value,status:document.getElementById('c-status').value,notes:document.getElementById('c-notes').value};if(editId){const i=data.contracts.findIndex(x=>x.id===editId);data.contracts[i]=con;logActivity(`✏ Contract updated: <b>${con.id}</b>`);}else{data.contracts.push(con);logActivity(`➕ Contract added: <b>${con.id}</b>`);}saveData();closeModal('contractModal');renderContracts();toast('✅ Saved');}
+function deleteContract(id){if(!confirm('Delete contract?'))return;data.contracts=data.contracts.filter(x=>x.id!==id);saveData();renderContracts();toast('🗑 Deleted','#FF000F');}
+
+// ══ REMINDERS ══
+function renderReminders(){
+  const tb=document.getElementById('reminder-table');
+  if(!data.reminders.length){tb.innerHTML=`<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🔔</div>No reminders.</div></td></tr>`;return;}
+  const rows=[...data.reminders].sort((a,b)=>new Date(a.date||'9999')-new Date(b.date||'9999'));
+  const prColors={Normal:'#6764f6',High:'#f5a623',Urgent:'#FF000F'};
+  tb.innerHTML=rows.map(r=>{const dl=daysLeft(r.date); return `<tr><td>${r.msg}</td><td>${fmtDate(r.date)}</td><td><span class="badge" style="background:${prColors[r.priority]||'#6764f6'}22;color:${prColors[r.priority]||'#6764f6'}">${r.priority||'Normal'}</span></td><td>${statusBadge(r.done?'Completed':'Active')}</td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="toggleReminder('${r.id}')">✔</button><button class="btn btn-danger btn-sm" onclick="deleteReminder('${r.id}')">🗑</button></div></td></tr>`;}).join('');
+  // notif count
+  const due=data.reminders.filter(r=>!r.done&&r.date&&daysLeft(r.date)<=1).length;
+  const nc=document.getElementById('notif-count');
+  nc.style.display=due?'':'none'; nc.textContent=due||'';
+}
+function saveReminder(){const msg=document.getElementById('rem-msg').value.trim();if(!msg){toast('⚠ Message required','#FF000F');return;}const editId=document.getElementById('rem-id').value;const rem={id:editId||('R'+String(nextId.rm++).padStart(3,'0')),msg,date:document.getElementById('rem-date').value,priority:document.getElementById('rem-priority').value,done:false};if(editId){const i=data.reminders.findIndex(x=>x.id===editId);data.reminders[i]=rem;}else{data.reminders.push(rem);}saveData();closeModal('reminderModal');renderReminders();toast('✅ Reminder saved');}
+function toggleReminder(id){const r=data.reminders.find(x=>x.id===id);if(r)r.done=!r.done;saveData();renderReminders();}
+function deleteReminder(id){data.reminders=data.reminders.filter(x=>x.id!==id);saveData();renderReminders();toast('🗑 Deleted','#FF000F');}
+
+// ══ ACTIVITY ══
+function renderActivity(){
+  const el=document.getElementById('activity-log');
+  if(!data.activity.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">🕒</div>No activity logged.</div>';return;}
+  el.innerHTML=data.activity.map(a=>`<div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);align-items:flex-start"><span style="width:10px;height:10px;border-radius:50%;background:${a.color||'#6764f6'};flex-shrink:0;margin-top:4px"></span><div style="flex:1"><div style="font-size:.84rem">${a.msg}</div><div style="font-size:.72rem;color:var(--muted);margin-top:2px">${a.time}</div></div></div>`).join('');
+}
+
+
+
+// ══ PURCHASE ORDERS ══
+let selPOs=new Set();
+function renderOrders(){
+  fillDropdowns();
+  const search=(document.getElementById('po-search')?.value||'').toLowerCase();
+  const pF=document.getElementById('po-proj-filter')?.value||'',
+        sF=document.getElementById('po-sup-filter')?.value||'',
+        stF=document.getElementById('po-status-filter')?.value||'';
+
+  const allLines=data.orders.filter(o=>{
+    const poNo=o.poNo||o.id;
+    return (!pF||o.project===pF)&&(!sF||o.supplier===sF)&&(!stF||o.status===stF)&&
+           (!search||(poNo+o.item+getSupName(o.supplier)).toLowerCase().includes(search));
+  });
+
+  // Group ALL lines by PO number (o.poNo with fallback to o.id for legacy data)
+  const grouped={};
+  allLines.forEach(o=>{
+    const poNo=o.poNo||o.id;
+    if(!grouped[poNo]){
+      grouped[poNo]={
+        poNo, project:o.project, supplier:o.supplier,
+        sentDate:o.sentDate, expDelivery:o.expDelivery,
+        delivery:o.delivery, status:o.status,
+        currency:o.currency||'USD', lines:[]
+      };
+    }
+    grouped[poNo].lines.push(o);
+    // Inherit dates from any line that has them
+    if(o.sentDate)    grouped[poNo].sentDate    = grouped[poNo].sentDate    || o.sentDate;
+    if(o.expDelivery) grouped[poNo].expDelivery = grouped[poNo].expDelivery || o.expDelivery;
+    if(o.delivery)    grouped[poNo].delivery    = grouped[poNo].delivery    || o.delivery;
+  });
+
+  const groups=Object.values(grouped);
+  const tb=document.getElementById('po-table');
+  const today=new Date(); today.setHours(0,0,0,0);
+
+  if(!groups.length){
+    tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">🛒</div>No POs found.</div></td></tr>`;
+    return;
+  }
+
+  tb.innerHTML=groups.map(g=>{
+    const expD=g.expDelivery?new Date(g.expDelivery+'T00:00:00'):null;
+    const actD=g.delivery?new Date(g.delivery+'T00:00:00'):null;
+    let dlBadge='';
+    if(actD) dlBadge=`<span class="badge badge-green" style="font-size:.68rem">✅ Delivered</span>`;
+    else if(expD){
+      const diff=Math.ceil((expD-today)/86400000);
+      dlBadge=diff<0
+        ?`<span class="badge badge-red" style="font-size:.68rem">⚠ ${Math.abs(diff)}d late</span>`
+        :diff<=7
+          ?`<span class="badge badge-yellow" style="font-size:.68rem">⏰ ${diff}d</span>`
+          :`<span class="badge badge-blue" style="font-size:.68rem">${diff}d left</span>`;
+    }
+    const checked=selPOs.has(g.poNo);
+    const proj=getProjById(g.project);
+    const lc=g.lines.length;
+
+    return `<tr id="por-${g.poNo}">
+      <td><input type="checkbox" class="po-cb" data-id="${g.poNo}" ${checked?'checked':''} onclick="onPOCB(this)"></td>
+      <td>
+        <span class="po-id-link" onclick="openPOLines('${g.poNo}')" title="Click to view all ${lc} line item${lc>1?'s':''}">${g.poNo}</span>
+        <div style="font-size:.7rem;color:#a5b4fc;margin-top:2px">${lc} line item${lc>1?'s':''}</div>
+      </td>
+      <td>${proj?`<span class="badge badge-purple" title="${proj.name}"><span class="color-dot" style="background:${proj.color||'#6764f6'}"></span>${proj.code}</span>`:'<span class="badge badge-gray">—</span>'}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${getSupName(g.supplier)}">${getSupName(g.supplier)}</td>
+      <td style="color:#a5b4fc;font-size:.8rem">${fmtDate(g.sentDate)||'—'}</td>
+      <td style="font-size:.8rem">${fmtDate(g.expDelivery)||'—'}<br>${dlBadge}</td>
+      <td style="font-size:.8rem;color:${actD?'#22d3a5':'#94a3b8'};font-weight:${actD?'700':'400'}">${fmtDate(g.delivery)||'—'}</td>
+      <td>${statusBadge(g.status)}</td>
+      <td><div class="action-btns">
+        <button class="btn btn-outline btn-sm" onclick="openQuickDateEdit('${g.poNo}')" title="Quick edit dates" style="background:#eff6ff;color:#1e40af;border:1px solid #bfdbfe">📅</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePOGroup('${g.poNo}')" title="Delete PO">🗑</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  updatePOBulkBar();
+  const allCBs=document.querySelectorAll('.po-cb');
+  const allChecked=allCBs.length>0&&[...allCBs].every(c=>c.checked);
+  const someChecked=[...allCBs].some(c=>c.checked);
+  const sa=document.getElementById('po-sel-all');
+  if(sa){sa.checked=allChecked;sa.indeterminate=someChecked&&!allChecked;}
+}
+
+function onPOCB(cb){const id=cb.dataset.id;const row=document.getElementById('por-'+id);if(cb.checked){selPOs.add(id);row?.style.setProperty('background','#f0eeff');}else{selPOs.delete(id);row?.style.removeProperty('background');}updatePOBulkBar();const allCBs=document.querySelectorAll('.po-cb');const sa=document.getElementById('po-sel-all');if(sa){sa.checked=[...allCBs].every(c=>c.checked);sa.indeterminate=[...allCBs].some(c=>c.checked)&&!sa.checked;}}
+function toggleSelAll(cb){document.querySelectorAll('.po-cb').forEach(c=>{c.checked=cb.checked;const id=c.dataset.id;const row=document.getElementById('por-'+id);if(cb.checked){selPOs.add(id);row?.style.setProperty('background','#f0eeff');}else{selPOs.delete(id);row?.style.removeProperty('background');}});updatePOBulkBar();}
+function updatePOBulkBar(){const bar=document.getElementById('po-bulk-bar');const cnt=document.getElementById('po-sel-count');if(!bar)return;cnt.textContent=selPOs.size;bar.classList.toggle('show',selPOs.size>0);}
+function clearPOSel(){selPOs.clear();document.querySelectorAll('.po-cb').forEach(c=>c.checked=false);document.querySelectorAll('[id^="por-"]').forEach(r=>r.style.removeProperty('background'));const sa=document.getElementById('po-sel-all');if(sa){sa.checked=false;sa.indeterminate=false;}updatePOBulkBar();}
+function bulkDeletePOs(){const c=selPOs.size;if(!c)return;if(!confirm(`Delete ${c} selected PO(s) and all their line items?`))return;const before=data.orders.length;data.orders=data.orders.filter(o=>!selPOs.has(o.poNo||o.id));const deleted=before-data.orders.length;logActivity(`🗑 Bulk deleted ${c} POs (${deleted} lines)`,'#FF000F');saveData();clearPOSel();renderOrders();toast(`🗑 ${c} PO(s) deleted`,'#FF000F');}
+function bulkChangeStatus(){const st=document.getElementById('bulk-status-sel').value;if(!st||!selPOs.size){toast('⚠ Select status and POs','#FF000F');return;}data.orders.forEach(o=>{if(selPOs.has(o.poNo||o.id))o.status=st;});logActivity(`🔄 Bulk status: ${selPOs.size} POs → ${st}`,'#6764f6');saveData();clearPOSel();renderOrders();toast(`✅ Updated to "${st}"`);}
+function editOrder(id){const o=data.orders.find(x=>x.id===id);if(!o)return;document.getElementById('orderModal-title').textContent='Edit PO';document.getElementById('o-id').value=o.id;fillDropdowns();document.getElementById('o-project').value=o.project||'';document.getElementById('o-supplier').value=o.supplier||'';document.getElementById('o-item').value=o.item||'';document.getElementById('o-qty').value=o.qty||'';document.getElementById('o-price').value=o.price||'';document.getElementById('o-currency').value=o.currency||'USD';document.getElementById('o-category').value=o.category||'Electrical';document.getElementById('o-sent').value=o.sentDate||'';document.getElementById('o-exp-delivery').value=o.expDelivery||'';document.getElementById('o-delivery').value=o.delivery||'';document.getElementById('o-status').value=o.status||'Draft';document.getElementById('o-notes').value=o.notes||'';openModal('orderModal');}
+function saveOrder(){const sup=document.getElementById('o-supplier').value,item=document.getElementById('o-item').value.trim();if(!sup||!item){toast('⚠ Supplier and Item required','#FF000F');return;}const editId=document.getElementById('o-id').value;const qty=parseFloat(document.getElementById('o-qty').value)||1,price=parseFloat(document.getElementById('o-price').value)||0;const o={id:editId||('PO'+String(nextId.o++).padStart(4,'0')),project:document.getElementById('o-project').value,supplier:sup,item,qty,price,currency:document.getElementById('o-currency').value||'USD',amount:qty*price,category:document.getElementById('o-category').value,sentDate:document.getElementById('o-sent').value,expDelivery:document.getElementById('o-exp-delivery').value,delivery:document.getElementById('o-delivery').value,status:document.getElementById('o-status').value,notes:document.getElementById('o-notes').value,createdAt:editId?(data.orders.find(x=>x.id===editId)?.createdAt||new Date().toISOString()):new Date().toISOString()};if(editId){const i=data.orders.findIndex(x=>x.id===editId);data.orders[i]=o;logActivity(`✏ PO updated: <b>${o.id}</b>`);}else{data.orders.push(o);logActivity(`➕ PO created: <b>${o.id}</b>`);}saveData();closeModal('orderModal');renderOrders();toast('✅ PO saved');}
+function deleteOrder(id){if(!confirm('Delete PO?'))return;const o=data.orders.find(x=>x.id===id);data.orders=data.orders.filter(x=>x.id!==id);logActivity(`🗑 PO deleted: <b>${o?.id}</b>`,'#FF000F');saveData();renderOrders();toast('🗑 Deleted','#FF000F');}
+
+// ══ BOM ══
+let activeBOMId=null;
+function getBOM(id){return data.boms.find(b=>b.id===id);}
+function matchPOs(item,projId){
+  const released=['Approved','Sent','Acknowledged','Delivered','Closed'];
+  return data.orders.filter(o=>{
+    if(o.project!==projId) return false;
+    if(item.supplier&&o.supplier!==item.supplier) return false;
+    const words=item.description.toLowerCase().split(/\s+/).filter(w=>w.length>2);
+    const desc=(o.item||'').toLowerCase();
+    return words.filter(w=>desc.includes(w)).length>=Math.max(1,Math.floor(words.length*.4));
+  });
+}
+function getPOStatus(item,projId){
+  const pos=matchPOs(item,projId);
+  if(!pos.length) return{status:'pending',label:'🔴 PO Pending',pos:[],qty:0};
+  const rel=pos.filter(o=>['Approved','Sent','Acknowledged','Delivered','Closed'].includes(o.status));
+  const qty=rel.reduce((s,o)=>s+(parseFloat(o.qty)||0),0);
+  const req=parseFloat(item.qty)||1;
+  if(!rel.length) return{status:'pending',label:'🔴 PO Pending',pos,qty:0};
+  if(qty>=req)    return{status:'released',label:'✅ PO Released',pos:rel,qty};
+  return{status:'partial',label:'⚠ Partial Released',pos:rel,qty};
+}
+function renderBOM(){
+  fillDropdowns();
+  const search=(document.getElementById('bom-search')?.value||'').toLowerCase();
+  const pF=document.getElementById('bom-proj-filter')?.value||'',stF=document.getElementById('bom-status-filter')?.value||'';
+  const rows=data.boms.filter(b=>(!pF||b.project===pF)&&(!stF||b.status===stF)&&(!search||(b.bomNo+b.description).toLowerCase().includes(search)));
+  // KPIs
+  let totI=0,totR=0,totP=0,totPart=0;
+  data.boms.forEach(b=>(b.items||[]).forEach(it=>{totI++;const{status}=getPOStatus(it,b.project);if(status==='released')totR++;else if(status==='pending')totP++;else totPart++;}));
+  document.getElementById('bom-kpis').innerHTML=`
+    <div class="kpi-card" style="border-top:4px solid var(--abb-lilac)"><div class="kpi-icon">📋</div><div class="kpi-info"><div class="kpi-value">${data.boms.length}</div><div class="kpi-label">Total BOMs</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #94a3b8"><div class="kpi-icon">📝</div><div class="kpi-info"><div class="kpi-value">${totI}</div><div class="kpi-label">Line Items</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #22d3a5"><div class="kpi-icon">✅</div><div class="kpi-info"><div class="kpi-value">${totR}</div><div class="kpi-label">PO Released</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #f5a623"><div class="kpi-icon">⚠</div><div class="kpi-info"><div class="kpi-value">${totPart}</div><div class="kpi-label">Partial</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #FF000F"><div class="kpi-icon">🔴</div><div class="kpi-info"><div class="kpi-value">${totP}</div><div class="kpi-label">PO Pending</div></div></div>`;
+  document.getElementById('bom-list-section').style.display='';
+  document.getElementById('bom-detail-section').style.display='none';
+  const tb=document.getElementById('bom-table');
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div>No BOMs. Click ➕ to create.</div></td></tr>`;return;}
+  const stMap={Draft:'badge-gray','In Review':'badge-yellow',Released:'badge-green',Obsolete:'badge-gray'};
+  tb.innerHTML=rows.map(b=>{
+    const p=getProjById(b.project);const items=b.items||[];const tot=items.length;
+    let rel=0,pend=0,part=0;items.forEach(it=>{const{status}=getPOStatus(it,b.project);if(status==='released')rel++;else if(status==='pending')pend++;else part++;});
+    const pct=tot?Math.round(rel/tot*100):0;const cc=pct>=80?'#22d3a5':pct>=40?'#f5a623':'#FF000F';
+    return `<tr><td><b style="color:var(--abb-lilac);cursor:pointer" onclick="openBOMDetail('${b.id}')">${b.bomNo}</b></td>
+      <td>${p?projBadge(p.id):'—'}</td>
+      <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.description||'—'}</td>
+      <td><span class="badge badge-blue">${b.rev||'A'}</span></td>
+      <td style="text-align:center"><b>${tot}</b></td>
+      <td style="text-align:center;color:#22d3a5;font-weight:700">${rel}</td>
+      <td style="text-align:center;color:#FF000F;font-weight:700">${pend}${part?` <span style="color:#f5a623">+${part}⚠</span>`:''}</td>
+      <td style="min-width:110px"><div style="font-size:.78rem;font-weight:700;color:${cc}">${pct}%</div><div class="prog-bar"><div class="prog-fill" style="width:${pct}%;background:${cc}"></div></div></td>
+      <td><span class="badge ${stMap[b.status]||'badge-gray'}">${b.status}</span></td>
+      <td><div class="action-btns">
+        <button class="btn btn-primary btn-sm" onclick="openBOMDetail('${b.id}')">🔍</button>
+        <button class="btn btn-outline btn-sm" onclick="editBOM('${b.id}')">✏</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBOM('${b.id}')">🗑</button>
+      </div></td></tr>`;}).join('');
+}
+function openBOMDetail(id){activeBOMId=id;document.getElementById('bom-list-section').style.display='none';document.getElementById('bom-detail-section').style.display='';renderBOMItems();}
+function closeBOMDetail(){activeBOMId=null;document.getElementById('bom-list-section').style.display='';document.getElementById('bom-detail-section').style.display='none';}
+function renderBOMItems(){
+  const bom=getBOM(activeBOMId);if(!bom)return;
+  const p=getProjById(bom.project);
+  document.getElementById('bom-detail-title').textContent=`📋 ${bom.bomNo} Rev ${bom.rev||'A'} — ${p?p.code+' '+p.name:'No Project'}`;
+  // info card
+  const sc={Draft:'#94a3b8','In Review':'#f5a623',Released:'#22d3a5',Obsolete:'#64748b'}[bom.status]||'#94a3b8';
+  document.getElementById('bom-info-card').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center"><div><span style="color:var(--muted);font-size:.72rem">BOM No.</span><br><b>${bom.bomNo}</b></div><div><span style="color:var(--muted);font-size:.72rem">Rev</span><br><b>${bom.rev||'A'}</b></div><div><span style="color:var(--muted);font-size:.72rem">Project</span><br><b>${p?p.code+' – '+p.name:'—'}</b></div><div style="flex:1"><span style="color:var(--muted);font-size:.72rem">Description</span><br>${bom.description||'—'}</div><div style="margin-left:auto;display:flex;gap:8px;align-items:center"><span style="background:${sc}22;color:${sc};border:1px solid ${sc}55;border-radius:6px;padding:4px 12px;font-weight:700">${bom.status}</span><button class="btn btn-outline btn-sm" onclick="editBOM('${bom.id}')">✏ Edit</button></div></div>`;
+  const items=bom.items||[];let rel=0,pend=0,part=0;items.forEach(it=>{const{status}=getPOStatus(it,bom.project);if(status==='released')rel++;else if(status==='pending')pend++;else part++;});
+  document.getElementById('bom-detail-kpis').innerHTML=`
+    <div class="kpi-card" style="border-top:4px solid #94a3b8"><div class="kpi-icon">📝</div><div class="kpi-info"><div class="kpi-value">${items.length}</div><div class="kpi-label">Total Items</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #22d3a5"><div class="kpi-icon">✅</div><div class="kpi-info"><div class="kpi-value">${rel}</div><div class="kpi-label">PO Released</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #f5a623"><div class="kpi-icon">⚠</div><div class="kpi-info"><div class="kpi-value">${part}</div><div class="kpi-label">Partial</div></div></div>
+    <div class="kpi-card" style="border-top:4px solid #FF000F"><div class="kpi-icon">🔴</div><div class="kpi-info"><div class="kpi-value">${pend}</div><div class="kpi-label">PO Pending</div></div></div>`;
+  const search=(document.getElementById('bom-item-search')?.value||'').toLowerCase();
+  const sF=document.getElementById('bom-item-sup-filter')?.value||'',pF=document.getElementById('bom-item-po-filter')?.value||'';
+  const filtered=items.filter(it=>{if(sF&&it.supplier!==sF)return false;if(pF&&getPOStatus(it,bom.project).status!==pF)return false;if(search&&!(it.description+it.lineNo+it.partNo).toLowerCase().includes(search))return false;return true;});
+  const tb=document.getElementById('bom-items-table');
+  if(!filtered.length){tb.innerHTML=`<tr><td colspan="9"><div class="empty-state"><div class="empty-icon">📋</div>No items. Click ➕ Add Item.</div></td></tr>`;return;}
+  tb.innerHTML=filtered.map(it=>{
+    const{status,label,pos,qty}=getPOStatus(it,bom.project);
+    const req=parseFloat(it.qty)||1;const pct2=status==='released'?100:status==='partial'?Math.round(qty/req*100):0;
+    const cc=status==='released'?'#22d3a5':status==='partial'?'#f5a623':'#FF000F';
+    const sup=it.supplier?getSupById(it.supplier):null;
+    const chips=pos.length?pos.map(o=>`<span class="chip" onclick="editOrder('${o.id}')" title="Click to edit PO">${o.id}</span>`).join(''):'<span style="color:var(--muted);font-size:.76rem">—</span>';
+    const cssC=status==='released'?'po-released':status==='partial'?'po-partial':'po-pending';
+    return `<tr>
+      <td><b>${it.lineNo||'—'}</b></td>
+      <td style="color:var(--abb-lilac);font-size:.8rem">${it.partNo||'—'}</td>
+      <td style="max-width:180px" title="${it.description}">${it.description}</td>
+      <td style="font-size:.8rem">${sup?sup.name:'<span style="color:var(--muted)">Any</span>'}</td>
+      <td style="text-align:center"><b>${it.qty}</b> <span style="color:var(--muted);font-size:.72rem">${it.unit||'Nos'}</span></td>
+      <td style="font-size:.78rem;color:var(--muted)">${it.unit||'Nos'}</td>
+      <td><span class="${cssC}">${label}</span>${status!=='pending'?`<div class="prog-bar" style="margin-top:4px"><div class="prog-fill" style="width:${pct2}%;background:${cc}"></div></div><div style="font-size:.68rem;color:${cc};margin-top:2px">${qty}/${req}</div>`:''}
+      </td>
+      <td>${chips}</td>
+      <td style="text-align:center;font-size:.82rem">${pos.length?`<b style="color:${cc}">${qty}</b>/<span style="color:var(--muted)">${req}</span>`:'—'}</td>
+      <td><div class="action-btns">
+        ${status==='pending'?`<button class="btn btn-primary btn-sm" onclick="createPOFromBOMItem('${bom.id}','${it.id}')">➕ PO</button>`:''}
+        <button class="btn btn-outline btn-sm" onclick="editBOMItem('${bom.id}','${it.id}')">✏</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteBOMItem('${bom.id}','${it.id}')">🗑</button>
+      </div></td></tr>`;}).join('');
+}
+function editBOM(id){const b=getBOM(id);if(!b)return;document.getElementById('bomModal-title').textContent='Edit BOM';document.getElementById('bom-id').value=b.id;document.getElementById('bom-no').value=b.bomNo;document.getElementById('bom-rev').value=b.rev||'A';document.getElementById('bom-desc').value=b.description||'';document.getElementById('bom-status').value=b.status||'Draft';fillDropdowns();document.getElementById('bom-project').value=b.project||'';openModal('bomModal');}
+function saveBOM(){const no=document.getElementById('bom-no').value.trim(),proj=document.getElementById('bom-project').value;if(!no){toast('⚠ BOM Number required','#FF000F');return;}const editId=document.getElementById('bom-id').value;if(!editId&&data.boms.find(b=>b.bomNo===no)){toast('⚠ BOM number exists','#FF000F');return;}const bom={id:editId||('B'+String(nextId.b++).padStart(3,'0')),bomNo:no,project:proj,rev:document.getElementById('bom-rev').value||'A',description:document.getElementById('bom-desc').value,status:document.getElementById('bom-status').value,items:editId?(getBOM(editId)?.items||[]):[],createdAt:editId?(getBOM(editId)?.createdAt||new Date().toISOString()):new Date().toISOString()};if(editId){const i=data.boms.findIndex(b=>b.id===editId);data.boms[i]=bom;logActivity(`✏ BOM updated: <b>${bom.bomNo}</b>`);}else{data.boms.push(bom);logActivity(`➕ BOM created: <b>${bom.bomNo}</b>`);}saveData();closeModal('bomModal');renderBOM();if(activeBOMId===bom.id)renderBOMItems();toast('✅ BOM saved');}
+function deleteBOM(id){const b=getBOM(id);if(!confirm(`Delete BOM ${b?.bomNo}?`))return;data.boms=data.boms.filter(x=>x.id!==id);logActivity(`🗑 BOM deleted: <b>${b?.bomNo}</b>`,'#FF000F');saveData();renderBOM();toast('🗑 Deleted','#FF000F');}
+function editBOMItem(bomId,itemId){activeBOMId=bomId;const b=getBOM(bomId);if(!b)return;const it=(b.items||[]).find(i=>i.id===itemId);if(!it)return;document.getElementById('bomItemModal-title').textContent='Edit Item';document.getElementById('bi-id').value=it.id;document.getElementById('bi-line').value=it.lineNo;document.getElementById('bi-part').value=it.partNo||'';document.getElementById('bi-desc').value=it.description;document.getElementById('bi-qty').value=it.qty;document.getElementById('bi-unit').value=it.unit||'Nos';document.getElementById('bi-category').value=it.category||'Electrical';document.getElementById('bi-notes').value=it.notes||'';fillDropdowns();document.getElementById('bi-supplier').value=it.supplier||'';openModal('bomItemModal');}
+function saveBOMItem(){const desc=document.getElementById('bi-desc').value.trim(),line=document.getElementById('bi-line').value.trim();if(!desc||!line){toast('⚠ Line # and Description required','#FF000F');return;}const bom=getBOM(activeBOMId);if(!bom)return;const editId=document.getElementById('bi-id').value;const it={id:editId||('BI'+String(nextId.bi++).padStart(4,'0')),lineNo:line,partNo:document.getElementById('bi-part').value.trim(),description:desc,supplier:document.getElementById('bi-supplier').value,qty:parseFloat(document.getElementById('bi-qty').value)||1,unit:document.getElementById('bi-unit').value,category:document.getElementById('bi-category').value,notes:document.getElementById('bi-notes').value.trim()};if(!bom.items)bom.items=[];if(editId){const i=bom.items.findIndex(x=>x.id===editId);bom.items[i]=it;}else{bom.items.push(it);}saveData();closeModal('bomItemModal');renderBOMItems();toast('✅ Item saved');}
+function deleteBOMItem(bomId,itemId){const b=getBOM(bomId);if(!b||!confirm('Delete item?'))return;b.items=b.items.filter(i=>i.id!==itemId);saveData();renderBOMItems();toast('🗑 Deleted','#FF000F');}
+function createPOFromBOMItem(bomId,itemId){const b=getBOM(bomId);if(!b)return;const it=(b.items||[]).find(i=>i.id===itemId);if(!it)return;closeBOMDetail();showPage('orders',document.querySelectorAll('.nav-item')[4]);setTimeout(()=>{document.getElementById('orderModal-title').textContent='New PO (from BOM)';document.getElementById('o-id').value='';fillDropdowns();document.getElementById('o-project').value=b.project||'';document.getElementById('o-supplier').value=it.supplier||'';document.getElementById('o-item').value=it.description;document.getElementById('o-qty').value=it.qty||1;document.getElementById('o-category').value=it.category||'Electrical';document.getElementById('o-notes').value=`From BOM: ${b.bomNo} Line: ${it.lineNo}${it.partNo?' Part:'+it.partNo:''}`;openModal('orderModal');},300);}
+
+// ══ PROCUREMENT PLAN ══
+function renderProcPlan(){
+  fillDropdowns();
+  const pF=document.getElementById('pp-proj-filter')?.value||'',stF=document.getElementById('pp-status-filter')?.value||'';
+  const rows=data.procplans.filter(p=>(!pF||p.project===pF)&&(!stF||p.status===stF));
+  const tb=document.getElementById('pp-table');
+  if(!rows.length){tb.innerHTML=`<tr><td colspan="10"><div class="empty-state"><div class="empty-icon">📅</div>No plans. Click ➕ to add.</div></td></tr>`;return;}
+  tb.innerHTML=rows.map(p=>{
+    const today=new Date(); today.setHours(0,0,0,0);
+
+    // ── IFAT breach logic ──────────────────────────────
+    let ifatBadge='<span class="badge badge-gray">—</span>';
+    let ifatRowStyle='';
+    if(p.ifat){
+      const ifatD=new Date(p.ifat+'T00:00:00');
+      const safeD=new Date(ifatD); safeD.setDate(safeD.getDate()-5); // 5-day buffer
+
+      // Get all active PO lines for this project
+      const projectLines=data.orders.filter(o=>{
+        const poNo=o.poNo||o.id;
+        return o.project===p.project && !['Cancelled','Closed'].includes(o.status) && o.expDelivery;
+      });
+
+      // Deduplicate by poNo - use latest expDelivery per PO
+      const poMap={};
+      projectLines.forEach(o=>{
+        const poNo=o.poNo||o.id;
+        if(!poMap[poNo]||o.expDelivery>poMap[poNo])poMap[poNo]=o.expDelivery;
+      });
+      const poDeliveries=Object.entries(poMap); // [[poNo, expDelivery], ...]
+
+      const breachedPOs = poDeliveries.filter(([,d])=>new Date(d+'T00:00:00')>ifatD);
+      const warningPOs  = poDeliveries.filter(([,d])=>{
+        const dd=new Date(d+'T00:00:00');
+        return dd>safeD && dd<=ifatD;
+      });
+
+      if(breachedPOs.length){
+        ifatBadge=`<span class="badge badge-red" style="cursor:pointer;font-size:.72rem" onclick="showIFATBreachDetail('${p.id}')">🚨 ${breachedPOs.length} PO breach</span>`;
+        ifatRowStyle='border-left:3px solid #FF000F;';
+      } else if(warningPOs.length){
+        ifatBadge=`<span class="badge badge-yellow" style="cursor:pointer;font-size:.72rem" onclick="showIFATBreachDetail('${p.id}')">⚠ ${warningPOs.length} PO at risk</span>`;
+        ifatRowStyle='border-left:3px solid #f5a623;';
+      } else if(poDeliveries.length){
+        ifatBadge=`<span class="badge badge-green" style="font-size:.72rem">✅ All on time</span>`;
+      }
+
+      // Also flag if today is past IFAT
+      if(today>ifatD && p.status!=='Completed'){
+        ifatBadge += `<br><span class="badge badge-red" style="font-size:.68rem;margin-top:3px">🔴 IFAT Overdue</span>`;
+        ifatRowStyle='border-left:3px solid #FF000F;background:rgba(255,0,15,.04);';
+      } else if(today>=safeD && today<=ifatD){
+        ifatRowStyle= ifatRowStyle || 'border-left:3px solid #f5a623;background:rgba(245,166,35,.04);';
+      }
+    }
+
+    const dl=daysLeft(p.ifat);
+    const ifatDlBadge=dl===null?'':dl<0
+      ?`<span class="badge badge-red" style="font-size:.68rem">⚠ ${Math.abs(dl)}d overdue</span>`
+      :dl<=5
+        ?`<span class="badge badge-yellow" style="font-size:.68rem">⏰ ${dl}d to IFAT</span>`
+        :`<span class="badge badge-blue" style="font-size:.68rem">${dl}d to IFAT</span>`;
+
+    return `<tr style="${ifatRowStyle}">
+      <td><b>${p.id}</b></td><td>${projBadge(p.project)}</td>
+      <td>
+        <div style="color:#6764f6;font-weight:700">${fmtDate(p.ifat)||'—'}</div>
+        <div style="margin-top:3px">${ifatDlBadge}</div>
+      </td>
+      <td style="color:#f5a623;font-weight:700">${fmtDate(p.fat)||'—'}</td>
+      <td style="color:#FF000F;font-weight:700">${fmtDate(p.delivery)||'—'}</td>
+      <td>${fmtMoney(p.budget,p.currency)}</td>
+      <td><span class="badge badge-blue">${p.currency||'USD'}</span></td>
+      <td>${ifatBadge}</td>
+      <td>${statusBadge(p.status)}</td>
+      <td><div class="action-btns">
+        <button class="btn btn-outline btn-sm" onclick="editProcPlan('${p.id}')">✏</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProcPlan('${p.id}')">🗑</button>
+      </div></td></tr>`;}).join('');
+}
+function editProcPlan(id){const p=data.procplans.find(x=>x.id===id);if(!p)return;document.getElementById('procplanModal-title').textContent='Edit Plan';document.getElementById('pp-id').value=p.id;fillDropdowns();document.getElementById('pp-project').value=p.project||'';document.getElementById('pp-ifat').value=p.ifat||'';document.getElementById('pp-fat').value=p.fat||'';document.getElementById('pp-delivery').value=p.delivery||'';document.getElementById('pp-budget').value=p.budget||'';document.getElementById('pp-currency').value=p.currency||'USD';document.getElementById('pp-status').value=p.status||'Planned';document.getElementById('pp-notes').value=p.notes||'';openModal('procplanModal');}
+function saveProcPlan(){const proj=document.getElementById('pp-project').value,del=document.getElementById('pp-delivery').value;if(!proj||!del){toast('⚠ Project and Delivery Date required','#FF000F');return;}const editId=document.getElementById('pp-id').value;const pp={id:editId||('PP'+String(nextId.pp++).padStart(3,'0')),project:proj,ifat:document.getElementById('pp-ifat').value,fat:document.getElementById('pp-fat').value,delivery:del,budget:parseFloat(document.getElementById('pp-budget').value)||0,currency:document.getElementById('pp-currency').value,status:document.getElementById('pp-status').value,notes:document.getElementById('pp-notes').value};if(editId){const i=data.procplans.findIndex(x=>x.id===editId);data.procplans[i]=pp;logActivity(`✏ Procurement Plan updated: <b>${pp.id}</b>`);}else{data.procplans.push(pp);logActivity(`➕ Procurement Plan created: <b>${pp.id}</b>`);}saveData();closeModal('procplanModal');renderProcPlan();toast('✅ Saved');}
+function deleteProcPlan(id){if(!confirm('Delete plan?'))return;data.procplans=data.procplans.filter(x=>x.id!==id);saveData();renderProcPlan();toast('🗑 Deleted','#FF000F');}
+
+
+
+// ══ GANTT SHARED ══
+const GANTT_COLORS=['#6764f6','#FF000F','#22d3a5','#f5a623','#06b6d4','#ec4899','#84cc16','#a78bfa','#fb923c','#38bdf8'];
+let planGanttZoom='month', poGanttZoom='month';
+let planGanttMin=null, poGanttMin=null;
+
+function ganttDates(plans){
+  const d=[];
+  plans.forEach(p=>{['ifat','fat','delivery'].forEach(k=>{if(p[k])d.push(new Date(p[k]+'T00:00:00'));});data.orders.filter(o=>o.project===p.project&&(o.expDelivery||o.delivery)).forEach(o=>{if(o.expDelivery)d.push(new Date(o.expDelivery+'T00:00:00'));if(o.delivery)d.push(new Date(o.delivery+'T00:00:00'));});});
+  d.push(new Date());
+  return d;
+}
+function gZoom(z){return z==='week'?{ms:7*86400000,w:80}:z==='quarter'?{ms:91*86400000,w:160}:{ms:30.44*86400000,w:110};}
+function gLabel(z,d){if(z==='week')return `W${getWk(d)} ${d.toLocaleDateString('en-GB',{month:'short'})}`;if(z==='quarter')return `Q${Math.ceil((d.getMonth()+1)/3)} ${d.getFullYear()}`;return d.toLocaleDateString('en-GB',{month:'short',year:'numeric'});}
+function getWk(d){const j=new Date(d.getFullYear(),0,1);return Math.ceil((((d-j)/86400000)+j.getDay()+1)/7);}
+function buildGanttHeader(containerId,min,max,zoom){
+  const{ms,w}=gZoom(zoom);const total=max-min;const totalW=Math.ceil(total/ms)*w;
+  let html=`<div style="display:flex;width:${totalW}px;height:54px">`;
+  let cur=new Date(min);let i=0;
+  while(cur<max){const x=((cur-min)/total)*totalW;html+=`<div style="position:absolute;left:${x}px;width:${w}px;height:54px;border-right:1px solid rgba(103,100,246,.25);display:flex;flex-direction:column;justify-content:center;align-items:center;background:${i%2===0?'rgba(103,100,246,.08)':'transparent'};overflow:hidden"><div style="color:#c7d2fe;font-weight:700;font-size:.76rem;white-space:nowrap">${gLabel(zoom,cur)}</div></div>`;if(zoom==='week')cur.setDate(cur.getDate()+7);else if(zoom==='quarter')cur.setMonth(cur.getMonth()+3);else cur.setMonth(cur.getMonth()+1);i++;}
+  return html+'</div>';}
+function setGanttZoom(type, z){
+  if(type==='plan'){
+    planGanttZoom=z;
+    ['w','m','q'].forEach(k=>{
+      const b=document.getElementById('pgb-'+k);
+      if(b) b.className='gz-btn'+(k===z[0]?' gz-active':'');
+    });
+    buildPlanGantt();
+  } else {
+    poGanttZoom=z;
+    ['w','m','q'].forEach(k=>{
+      const b=document.getElementById('pogb-'+k);
+      if(b) b.className='gz-btn'+(k===z[0]?' gz-active':'');
+    });
+    buildPOGantt();
+  }
+}
+
+// ── PLAN GANTT ────────────────────────────────────────────────
+function buildPlanGantt(){
+  fillDropdowns();
+  const projF=document.getElementById('plan-gantt-proj')?.value||'';
+  let plans=data.procplans.filter(p=>p.delivery&&(!projF||p.project===projF)).sort((a,b)=>new Date(a.delivery)-new Date(b.delivery));
+  const sub=document.getElementById('plan-gantt-sub');
+  if(!plans.length){document.getElementById('plan-gantt-label-rows').innerHTML='<div style="padding:30px 16px;color:#7c7fa8;text-align:center;font-size:.82rem">No plans with delivery dates.</div>';document.getElementById('plan-gantt-header').innerHTML='';document.getElementById('plan-gantt-bars').innerHTML='';if(sub)sub.textContent='0 plans';return;}
+  if(sub)sub.textContent=`${plans.length} plan(s) · ${[...new Set(plans.map(p=>p.project))].length} project(s)`;
+  const allD=ganttDates(plans);
+  let minD=new Date(Math.min(...allD)),maxD=new Date(Math.max(...allD));
+  minD=new Date(minD.getFullYear(),minD.getMonth()-1,1);maxD=new Date(maxD.getFullYear(),maxD.getMonth()+2,0);
+  planGanttMin=minD;
+  const total=maxD-minD;const{ms,w}=gZoom(planGanttZoom);const totalW=Math.ceil(total/ms)*w;
+  const ROW=72;
+  function dToX(d){const dt=d instanceof Date?d:new Date(d+'T00:00:00');return((dt-minD)/total)*totalW;}
+  // Header
+  document.getElementById('plan-gantt-header').style.width=totalW+'px';
+  document.getElementById('plan-gantt-header').innerHTML=buildGanttHeader('plan-gantt-header',minD,maxD,planGanttZoom);
+  let labHTML='',barsHTML=`<div style="width:${totalW}px;position:relative">`;
+  plans.forEach((plan,idx)=>{
+    const p=getProjById(plan.project);const pc=GANTT_COLORS[idx%GANTT_COLORS.length];const rowTop=idx*ROW;const midY=rowTop+ROW/2;const rowBg=idx%2===0?'rgba(255,255,255,.015)':'rgba(255,255,255,.04)';
+    const breachPOs=data.orders.filter(o=>o.project===plan.project&&o.expDelivery&&!['Cancelled'].includes(o.status)&&new Date(o.expDelivery+'T00:00:00')>new Date(plan.delivery+'T00:00:00'));
+    labHTML+=`<div onclick="editProcPlan('${plan.id}')" style="height:${ROW}px;padding:0 14px;display:flex;align-items:center;gap:8px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer" onmouseover="this.style.background='rgba(103,100,246,.12)'" onmouseout="this.style.background='${rowBg}'"><div style="width:4px;height:44px;border-radius:2px;background:${pc};flex-shrink:0"></div><div style="min-width:0;flex:1"><div style="color:#e2e8f0;font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.code||plan.id}</div><div style="color:#94a3b8;font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.name||''}</div><div style="margin-top:3px">${breachPOs.length?`<span class="badge badge-red" style="font-size:.65rem">🚨${breachPOs.length} breach</span>`:'<span class="badge badge-green" style="font-size:.65rem">✅ OK</span>'}</div></div></div>`;
+    // row bg
+    barsHTML+=`<div style="position:absolute;top:${rowTop}px;left:0;width:100%;height:${ROW}px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.04)"></div>`;
+    // Spine
+    const spS=plan.ifat||plan.fat||plan.delivery;if(spS&&plan.delivery){const x1=dToX(spS),x2=dToX(plan.delivery);barsHTML+=`<div style="position:absolute;top:${midY-3}px;left:${x1}px;width:${Math.max(x2-x1,2)}px;height:6px;background:linear-gradient(90deg,${pc}66,${pc}22);border-radius:3px"></div>`;}
+    // Milestone pin function
+    function pin(dateStr,color,label){if(!dateStr)return;const x=dToX(dateStr);const d=new Date(dateStr+'T00:00:00');const ds=d.getDate()+'/'+(d.getMonth()+1);
+      barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'${label} Milestone','${p?.code||''}','Date: ${fmtDate(dateStr)}','Project: ${p?.name||''}','Status: ${plan.status}')" onmouseleave="hideGTip('plan-gantt-tip')" onclick="editProcPlan('${plan.id}')" style="position:absolute;top:${midY-22}px;left:${x-13}px;width:26px;cursor:pointer;text-align:center;z-index:2">
+        <div style="width:26px;height:26px;border-radius:50%;background:${color};border:2.5px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;color:#fff;box-shadow:0 2px 8px ${color}66" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform='scale(1)'">${label==='IFAT'?'I':label==='FAT'?'F':'🏁'}</div>
+        <div style="width:2px;height:8px;background:${color};margin:0 auto;opacity:.7"></div>
+        <div style="background:${color}22;border:1px solid ${color}55;color:${color};border-radius:3px;padding:1px 3px;font-size:.6rem;font-weight:700;white-space:nowrap">${ds}</div>
+      </div>`;}
+    pin(plan.ifat,'#6764f6','IFAT');pin(plan.fat,'#f5a623','FAT');pin(plan.delivery,'#FF000F','DELIVERY');
+    // PO dots
+    data.orders.filter(o=>o.project===plan.project&&(o.expDelivery||o.delivery)&&!['Cancelled'].includes(o.status)).forEach(po=>{
+      const dateStr=po.expDelivery||po.delivery;const x=dToX(dateStr);const breach=plan.delivery&&new Date(dateStr+'T00:00:00')>new Date(plan.delivery+'T00:00:00');const dc=breach?'#FF000F':'#22d3a5';
+      barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'${breach?'🚨 BREACH':'✅ On Track'}','PO: ${po.id}','Item: ${po.item?.replace(/'/g,'')}','Supplier: ${getSupName(po.supplier)}','Exp: ${fmtDate(dateStr)}','Plan: ${fmtDate(plan.delivery)}')" onmouseleave="hideGTip('plan-gantt-tip')" onclick="closeGantt('planGanttOverlay');editOrder('${po.id}')" style="position:absolute;top:${midY+14}px;left:${x-7}px;cursor:pointer;z-index:2">
+        <div style="width:14px;height:14px;border-radius:50%;background:${dc};border:2px solid rgba(255,255,255,.5);box-shadow:0 0 5px ${dc}99;${breach?'animation:pulseBreach 1s infinite':''}"></div>
+      </div>`; });
+  });
+  // Today
+  const tx=dToX(new Date());const totH=plans.length*ROW;
+  barsHTML+=`<div style="position:absolute;top:0;left:${tx}px;width:2px;height:${totH}px;background:linear-gradient(180deg,#ff6b6b,#ff6b6b88);pointer-events:none;z-index:5"></div><div style="position:absolute;top:0;left:${tx-16}px;width:32px;background:#FF000F;color:#fff;font-size:.6rem;font-weight:800;text-align:center;padding:2px 0;border-radius:0 0 3px 3px;z-index:5">TODAY</div></div>`;
+  document.getElementById('plan-gantt-label-rows').innerHTML=labHTML;
+  document.getElementById('plan-gantt-bars').innerHTML=barsHTML;
+  syncGanttScroll('plan-gantt-scroll','plan-gantt-labels');
+}
+
+// ── PO GANTT ─────────────────────────────────────────────────
+function buildPOGantt(){
+  fillDropdowns();
+  const supF=document.getElementById('po-gantt-sup')?.value||'',projF=document.getElementById('po-gantt-proj')?.value||'',stF=document.getElementById('po-gantt-status')?.value||'';
+  let orders=data.orders.filter(o=>(!supF||o.supplier===supF)&&(!projF||o.project===projF)&&(!stF||o.status===stF)&&(o.sentDate||o.expDelivery||o.delivery));
+  const sub=document.getElementById('po-gantt-sub');
+  if(!orders.length){document.getElementById('po-gantt-label-rows').innerHTML='<div style="padding:30px;color:#7c7fa8;text-align:center;font-size:.82rem">No POs with date info. Add Sent/Delivery dates.</div>';document.getElementById('po-gantt-header').innerHTML='';document.getElementById('po-gantt-bars').innerHTML='';if(sub)sub.textContent='0 POs';return;}
+  if(sub)sub.textContent=`${orders.length} PO(s)`;
+  // Group by supplier
+  const groups={};orders.forEach(o=>{const k=o.supplier||'__';if(!groups[k])groups[k]=[];groups[k].push(o);});
+  const supKeys=Object.keys(groups).sort((a,b)=>getSupName(a).localeCompare(getSupName(b)));
+  const allD=[];orders.forEach(o=>{['sentDate','expDelivery','delivery'].forEach(k=>{if(o[k])allD.push(new Date(o[k]+'T00:00:00'));});});allD.push(new Date());
+  let minD=new Date(Math.min(...allD)),maxD=new Date(Math.max(...allD));
+  minD=new Date(minD.getFullYear(),minD.getMonth()-1,1);maxD=new Date(maxD.getFullYear(),maxD.getMonth()+2,0);
+  poGanttMin=minD;
+  const total=maxD-minD;const{ms,w}=gZoom(poGanttZoom);const totalW=Math.ceil(total/ms)*w;
+  const RGRP=36,RPO=52;
+  function dToX(d){const dt=d instanceof Date?d:new Date(d+'T00:00:00');return((dt-minD)/total)*totalW;}
+  document.getElementById('po-gantt-header').style.width=totalW+'px';
+  document.getElementById('po-gantt-header').innerHTML=buildGanttHeader('po-gantt-header',minD,maxD,poGanttZoom);
+  let labHTML='',barsHTML=`<div style="width:${totalW}px;position:relative">`;
+  const today=new Date();today.setHours(0,0,0,0);
+  let curTop=0;
+  supKeys.forEach((sk,si)=>{
+    const sName=getSupName(sk);const sc=GANTT_COLORS[si%GANTT_COLORS.length];const pos=groups[sk];
+    const gh=curTop;
+    labHTML+=`<div style="height:${RGRP}px;padding:0 14px;display:flex;align-items:center;gap:8px;background:rgba(103,100,246,.12);border-bottom:1px solid rgba(103,100,246,.2);border-left:4px solid ${sc}"><span style="font-size:.95rem">🏭</span><div><div style="color:#e2e8f0;font-weight:800;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${sName}</div><div style="color:#7c7fa8;font-size:.68rem">${pos.length} PO(s)</div></div></div>`;
+    barsHTML+=`<div style="position:absolute;top:${gh}px;left:0;width:100%;height:${RGRP}px;background:rgba(103,100,246,.06);border-bottom:1px solid rgba(103,100,246,.2)"></div>`;
+    curTop+=RGRP;
+    pos.forEach((po,pi)=>{
+      const rowTop=curTop;const midY=rowTop+RPO/2;const rowBg=pi%2===0?'rgba(255,255,255,.01)':'rgba(255,255,255,.035)';
+      const expD=po.expDelivery?new Date(po.expDelivery+'T00:00:00'):null;const actD=po.delivery?new Date(po.delivery+'T00:00:00'):null;
+      const overdue=expD&&!actD&&today>expD;const bc=actD?'#22d3a5':overdue?'#FF000F':sc;
+      const proj=getProjById(po.project);
+      const stc={Draft:'#94a3b8',Approved:'#22d3a5',Sent:'#6764f6',Acknowledged:'#a78bfa',Delivered:'#22d3a5',Closed:'#64748b',Cancelled:'#FF000F'}[po.status]||'#94a3b8';
+      labHTML+=`<div onclick="closeGantt('poGanttOverlay');editOrder('${po.id}')" style="height:${RPO}px;padding:0 14px 0 22px;display:flex;align-items:center;gap:8px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onmouseover="this.style.background='rgba(103,100,246,.1)'" onmouseout="this.style.background='${rowBg}'"><div style="width:3px;height:36px;border-radius:2px;background:${bc};flex-shrink:0"></div><div style="min-width:0;flex:1"><div style="color:#e2e8f0;font-weight:700;font-size:.78rem;display:flex;align-items:center;gap:5px"><span>${po.id}</span><span style="background:${stc}22;color:${stc};border:1px solid ${stc}44;border-radius:3px;padding:1px 4px;font-size:.62rem">${po.status}</span></div><div style="color:#94a3b8;font-size:.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${po.item||''}</div>${proj?`<div style="color:#6764f6;font-size:.66rem">${proj.code}</div>`:''}</div></div>`;
+      barsHTML+=`<div style="position:absolute;top:${rowTop}px;left:0;width:100%;height:${RPO}px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.04)"></div>`;
+      // Duration bar sentDate → expDelivery
+      const barS=po.sentDate?new Date(po.sentDate+'T00:00:00'):null;const barE=expD;
+      if(barS&&barE&&barE>barS){const bx=dToX(barS),bx2=dToX(barE),bw=Math.max(bx2-bx,4);const by=midY-8;
+        barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'📦 ${po.id}','Item: ${po.item?.replace(/'/g,'')?.slice(0,40)}','Supplier: ${sName}','Sent: ${fmtDate(po.sentDate)}','Exp Delivery: ${fmtDate(po.expDelivery)}','Exact Delivery: ${fmtDate(po.delivery)||'Pending'}','Amount: ${fmtMoney(po.amount,po.currency)}','Status: ${po.status}'${overdue?`,'⚠ OVERDUE by ${Math.ceil((today-expD)/86400000)}d'`:actD?`,'✅ Delivered ${fmtDate(po.delivery)}'`:''})" onmouseleave="hideGTip('po-gantt-tip')" onclick="closeGantt('poGanttOverlay');editOrder('${po.id}')" style="position:absolute;top:${by}px;left:${bx}px;width:${bw}px;height:16px;cursor:pointer;background:linear-gradient(90deg,${bc}dd,${bc}88);border-radius:8px;border:1.5px solid ${bc};box-shadow:0 2px 8px ${bc}44;${overdue?'animation:pulseBreach 1s infinite':''}"></div>`;}
+      // Sent marker
+      if(po.sentDate){const x=dToX(po.sentDate);barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'📅 Sent Date','PO: ${po.id}','Date: ${fmtDate(po.sentDate)}')" onmouseleave="hideGTip('po-gantt-tip')" style="position:absolute;top:${midY-8}px;left:${x-7}px;width:14px;height:14px;border-radius:50%;background:#a5b4fc;border:2px solid rgba(255,255,255,.6);box-shadow:0 0 5px #a5b4fc88;z-index:3;cursor:pointer"></div>`;}
+      // Exp delivery marker
+      if(po.expDelivery){const x=dToX(po.expDelivery);const dc=overdue?'#FF000F':'#f5a623';barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'📦 Expected Delivery','PO: ${po.id}','Date: ${fmtDate(po.expDelivery)}'${overdue?`,'⚠ OVERDUE'`:''})" onmouseleave="hideGTip('po-gantt-tip')" style="position:absolute;top:${midY-8}px;left:${x-7}px;width:14px;height:14px;border-radius:50%;background:${dc};border:2px solid rgba(255,255,255,.6);box-shadow:0 0 5px ${dc}88;z-index:3;cursor:pointer;${overdue?'animation:pulseBreach 1s infinite':''}"></div>`;}
+      // Actual delivery marker
+      if(po.delivery){const x=dToX(po.delivery);barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'✅ Exact Delivery','PO: ${po.id}','Date: ${fmtDate(po.delivery)}')" onmouseleave="hideGTip('po-gantt-tip')" style="position:absolute;top:${midY-8}px;left:${x-7}px;width:14px;height:14px;border-radius:50%;background:#22d3a5;border:2.5px solid rgba(255,255,255,.8);box-shadow:0 0 8px #22d3a588;z-index:4;cursor:pointer"></div><div style="position:absolute;top:${midY-6}px;left:${x-4}px;color:#fff;font-size:8px;font-weight:900;z-index:5;pointer-events:none">✓</div>`;}
+      curTop+=RPO;
+    });
+  });
+  const tx=dToX(new Date());
+  barsHTML+=`<div style="position:absolute;top:0;left:${tx}px;width:2px;height:${curTop}px;background:linear-gradient(180deg,#ff6b6b,#ff6b6b88);pointer-events:none;z-index:5"></div><div style="position:absolute;top:0;left:${tx-16}px;width:32px;background:#FF000F;color:#fff;font-size:.6rem;font-weight:800;text-align:center;padding:2px 0;border-radius:0 0 3px 3px;z-index:5">TODAY</div></div>`;
+  document.getElementById('po-gantt-label-rows').innerHTML=labHTML;
+  document.getElementById('po-gantt-bars').innerHTML=barsHTML;
+  syncGanttScroll('po-gantt-scroll','po-gantt-labels');
+}
+
+// ── TOOLTIP ──────────────────────────────────────────────────
+function showGTip(e,...parts){
+  const id=e.currentTarget.closest('[id$="Overlay"]')?.id==='poGanttOverlay'?'po-gantt-tip':'plan-gantt-tip';
+  const tip=document.getElementById(id);if(!tip)return;
+  let html=`<div style="font-weight:800;font-size:.88rem;margin-bottom:8px;color:#a5b4fc;border-bottom:1px solid rgba(103,100,246,.3);padding-bottom:6px">${parts[0]||''}</div>`;
+  parts.slice(1).forEach(p=>{if(!p)return;const ci=p.indexOf(':');if(ci>-1)html+=`<div style="display:flex;gap:8px;margin-bottom:3px"><span style="color:#7c7fa8;min-width:90px">${p.slice(0,ci)}:</span><span style="color:#e2e8f0;font-weight:600">${p.slice(ci+1)}</span></div>`;else html+=`<div style="color:${p.startsWith('⚠')?'#ff6b6b':p.startsWith('✅')?'#22d3a5':'#e2e8f0'};font-weight:700">${p}</div>`;});
+  tip.innerHTML=html;tip.style.display='block';posGTip(e,id);
+}
+function hideGTip(id){const t=document.getElementById(id);if(t)t.style.display='none';}
+function posGTip(e,id){const t=document.getElementById(id);if(!t)return;let l=e.clientX+16,top=e.clientY-10;if(l+320>window.innerWidth)l=e.clientX-330;if(top+220>window.innerHeight)top=e.clientY-200;t.style.left=l+'px';t.style.top=top+'px';}
+document.addEventListener('mousemove',e=>{['plan-gantt-tip','po-gantt-tip'].forEach(id=>{const t=document.getElementById(id);if(t&&t.style.display==='block')posGTip(e,id);});});
+
+// ── SCROLL SYNC ───────────────────────────────────────────────
+function syncGanttScroll(scrollId,labelId){
+  const sc=document.getElementById(scrollId),lb=document.getElementById(labelId);
+  if(!sc||!lb)return;
+  sc.removeEventListener('scroll',sc._syncH);lb.removeEventListener('scroll',lb._syncH);
+  sc._syncH=()=>lb.scrollTop=sc.scrollTop;lb._syncH=()=>sc.scrollTop=lb.scrollTop;
+  sc.addEventListener('scroll',sc._syncH);lb.addEventListener('scroll',lb._syncH);
+}
+function ganttScrollToday(scrollId){
+  const sc=document.getElementById(scrollId);if(!sc)return;
+  const min=scrollId.includes('po')?poGanttMin:planGanttMin;if(!min)return;
+  const allD=[new Date()];const{ms,w}=gZoom(scrollId.includes('po')?poGanttZoom:planGanttZoom);
+  const max=new Date(new Date().getFullYear(),new Date().getMonth()+3,0);
+  const total=max-min;const totalW=Math.ceil(total/ms)*w;
+  const tx=((new Date()-min)/total)*totalW;
+  sc.scrollLeft=Math.max(0,tx-sc.clientWidth/2);
+}
+
+// ══ SETTINGS / EMAIL ══
+let emailCfg=JSON.parse(localStorage.getItem('abbProcEmail')||'{}');
+function renderSettings(){
+  document.getElementById('cfg-email').value=emailCfg.email||'';
+  document.getElementById('cfg-cc').value=emailCfg.cc||'';
+  document.getElementById('cfg-pubkey').value=emailCfg.pubkey||'';
+  document.getElementById('cfg-service').value=emailCfg.service||'';
+  document.getElementById('cfg-template').value=emailCfg.template||'';
+  document.getElementById('cfg-threshold').value=emailCfg.threshold||'0';
+  document.getElementById('cfg-mailto-fallback').checked=emailCfg.mailtoFallback!==false;
+  runBreachCheck(false);
+}
+function saveEmailConfig(){
+  emailCfg={email:document.getElementById('cfg-email').value.trim(),cc:document.getElementById('cfg-cc').value.trim(),pubkey:document.getElementById('cfg-pubkey').value.trim(),service:document.getElementById('cfg-service').value.trim(),template:document.getElementById('cfg-template').value.trim(),threshold:parseInt(document.getElementById('cfg-threshold').value)||0,mailtoFallback:document.getElementById('cfg-mailto-fallback').checked};
+  localStorage.setItem('abbProcEmail',JSON.stringify(emailCfg));
+  if(emailCfg.pubkey&&typeof emailjs!=='undefined')emailjs.init(emailCfg.pubkey);
+  toast('✅ Email config saved');logActivity('⚙ Email config saved','#6764f6');
+}
+function getBreaches(){
+  const breaches=[];
+  data.procplans.forEach(plan=>{
+    if(!plan.ifat||['Completed','Cancelled'].includes(plan.status))return;
+    const ifatD=new Date(plan.ifat+'T00:00:00');
+    const safeD=new Date(ifatD); safeD.setDate(safeD.getDate()-5);
+
+    // Deduplicate POs by poNo - use latest expDelivery
+    const poMap={};
+    data.orders.filter(o=>o.project===plan.project&&(o.expDelivery||o.delivery)&&!['Cancelled','Closed'].includes(o.status))
+      .forEach(o=>{
+        const poNo=o.poNo||o.id;
+        const d=o.expDelivery||o.delivery;
+        if(!poMap[poNo]||d>poMap[poNo].date) poMap[poNo]={date:d,o};
+      });
+
+    Object.values(poMap).forEach(({date,o})=>{
+      const poD=new Date(date+'T00:00:00');
+      const diffFromIFAT=Math.ceil((poD-ifatD)/86400000); // +ve = after IFAT = breach
+      const diffFromSafe=Math.ceil((poD-safeD)/86400000); // +ve = past safe date
+
+      if(diffFromIFAT>0){
+        // BREACH: PO arrives AFTER IFAT
+        const p=getProjById(plan.project);
+        breaches.push({
+          type:'breach',
+          planId:plan.id, poNo:o.poNo||o.id, item:o.item,
+          projName:p?.name||'', projCode:p?.code||'',
+          ifatDate:plan.ifat, poDate:date,
+          diffDays:diffFromIFAT,
+          supplier:getSupName(o.supplier), status:o.status,
+          amount:fmtMoney(o.amount,o.currency)
+        });
+      } else if(diffFromSafe>0){
+        // WARNING: PO arrives within 5-day safe window before IFAT
+        const p=getProjById(plan.project);
+        breaches.push({
+          type:'warning',
+          planId:plan.id, poNo:o.poNo||o.id, item:o.item,
+          projName:p?.name||'', projCode:p?.code||'',
+          ifatDate:plan.ifat, poDate:date,
+          diffDays:diffFromIFAT, // negative = days before IFAT
+          supplier:getSupName(o.supplier), status:o.status,
+          amount:fmtMoney(o.amount,o.currency)
+        });
+      }
+    });
+  });
+  return breaches;
+}
+function runBreachCheck(show){
+  const breaches=getBreaches();
+  document.getElementById('last-check-info').textContent=`Last checked: ${new Date().toLocaleString()} | ${breaches.length} breach(es)`;
+  if(show)renderBreachReport(breaches);
+  const alertEl=document.getElementById('dash-alerts');if(alertEl){const ex=document.getElementById('dash-breach-alert');if(ex)ex.remove();if(breaches.length){const d=document.createElement('div');d.id='dash-breach-alert';d.className='alert alert-danger';d.innerHTML=`🚨 <b>${breaches.length}</b> PO delivery breach(es) detected! <button class="btn btn-danger btn-sm" onclick="showPage('settings',document.querySelectorAll('.nav-item')[10])">View Report</button> <button class="btn btn-outline btn-sm" onclick="openOutlookAlert()">📧 Email</button>`;alertEl.prepend(d);}}
+  const bOnly=breaches.filter(b=>b.type==='breach').length;
+  const wOnly=breaches.filter(b=>b.type==='warning').length;
+  document.getElementById('breach-alert-top').style.display=breaches.length?'':'none';
+  document.getElementById('breach-alert-top').textContent=breaches.length
+    ?(bOnly?`🚨 ${bOnly} IFAT breach(es)`:``)+(wOnly?` ⚠ ${wOnly} at risk`:'')
+    :'';
+  return breaches;
+}
+function renderBreachReport(breaches){
+  const el=document.getElementById('breach-report');if(!el)return;
+  if(!breaches.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">✅</div>No IFAT breaches or warnings found!</div>';return;}
+
+  const bCount=breaches.filter(b=>b.type==='breach').length;
+  const wCount=breaches.filter(b=>b.type==='warning').length;
+
+  const byProj={};
+  breaches.forEach(b=>{if(!byProj[b.projCode])byProj[b.projCode]=[];byProj[b.projCode].push(b);});
+
+  el.innerHTML=`
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:16px">
+      ${bCount?`<span class="badge badge-red">🚨 ${bCount} IFAT Breach${bCount>1?'es':''}</span>`:''}
+      ${wCount?`<span class="badge badge-yellow">⚠ ${wCount} At Risk (within 5-day buffer)</span>`:''}
+      <span style="color:var(--muted);font-size:.78rem;margin-left:auto">Safe zone = IFAT − 5 days</span>
+    </div>
+    ${Object.entries(byProj).map(([code,items])=>`
+      <div style="margin-bottom:18px">
+        <div style="font-weight:800;color:#a5b4fc;margin-bottom:8px;font-size:.88rem">📁 ${code} — ${items[0].projName}</div>
+        <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+          <thead><tr style="background:rgba(103,100,246,.1);color:#a5b4fc">
+            <th style="padding:7px 10px;text-align:left">Type</th>
+            <th style="padding:7px 10px;text-align:left">PO #</th>
+            <th style="padding:7px 10px;text-align:left">Supplier</th>
+            <th style="padding:7px 10px;text-align:center">IFAT Date</th>
+            <th style="padding:7px 10px;text-align:center">Safe Date<br><small>(IFAT−5d)</small></th>
+            <th style="padding:7px 10px;text-align:center">PO Exp. Delivery</th>
+            <th style="padding:7px 10px;text-align:center">Days vs IFAT</th>
+            <th style="padding:7px 10px;text-align:left">Status</th>
+          </tr></thead>
+          <tbody>
+          ${items.map(b=>{
+            const isBreachRow=b.type==='breach';
+            const ifatD=new Date(b.ifatDate+'T00:00:00');
+            const safeD=new Date(ifatD); safeD.setDate(safeD.getDate()-5);
+            const safeDateStr=safeD.toISOString().slice(0,10);
+            const dayLabel=isBreachRow
+              ?`<span style="color:#FF000F;font-weight:800">+${b.diffDays}d AFTER IFAT</span>`
+              :`<span style="color:#f5a623;font-weight:800">${Math.abs(b.diffDays)}d before IFAT</span>`;
+            return `<tr style="border-bottom:1px solid rgba(103,100,246,.1);background:${isBreachRow?'rgba(255,0,15,.05)':'rgba(245,166,35,.05)'}">
+              <td style="padding:7px 10px">${isBreachRow?'<span class="badge badge-red" style="font-size:.68rem">🚨 BREACH</span>':'<span class="badge badge-yellow" style="font-size:.68rem">⚠ AT RISK</span>'}</td>
+              <td style="padding:7px 10px;font-weight:700;color:#a5b4fc">${b.poNo}</td>
+              <td style="padding:7px 10px">${b.supplier}</td>
+              <td style="padding:7px 10px;text-align:center;color:#6764f6;font-weight:700">${fmtDate(b.ifatDate)}</td>
+              <td style="padding:7px 10px;text-align:center;color:#22d3a5;font-weight:700">${fmtDate(safeDateStr)}</td>
+              <td style="padding:7px 10px;text-align:center;color:${isBreachRow?'#FF000F':'#f5a623'};font-weight:700">${fmtDate(b.poDate)}</td>
+              <td style="padding:7px 10px;text-align:center">${dayLabel}</td>
+              <td style="padding:7px 10px">${statusBadge(b.status)}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+      </div>`).join('')}`;
+}
+function buildEmailBody(breaches){const NL='\r\n';let body='ABB PROCUREMENT CRM - DELIVERY BREACH ALERT'+NL+'=============================================='+NL+'Generated: '+new Date().toLocaleString()+NL+'Total Breaches: '+breaches.length+NL+NL;const byP={};breaches.forEach(b=>{if(!byP[b.projCode])byP[b.projCode]=[];byP[b.projCode].push(b);});Object.entries(byP).forEach(([code,rows])=>{body+='PROJECT: '+code+' – '+rows[0].projName+NL+'Plan Deadline: '+fmtDate(rows[0].planDate)+NL+'----------------------------------------------'+NL;rows.forEach((b,i)=>{body+=`  [${i+1}] PO: ${b.poId} | ${b.item}${NL}      Supplier: ${b.supplier}${NL}      PO Delivery: ${fmtDate(b.poDate)} (+${b.diffDays} days late)${NL}      Status: ${b.status} | Amount: ${b.amount}${NL}${NL}`;});});body+='=============================================='+NL+'Please take immediate action.'+NL+'ABB Procurement CRM';return body;}
+function sendBreachEmailAll(){const breaches=getBreaches();if(!breaches.length){toast('✅ No breaches!','#22d3a5');return;}const subj=`🚨 [ABB Procurement] ${breaches.length} PO Delivery Breach(es) Detected`;sendEmailAlert(subj,buildEmailBody(breaches));}
+function sendEmailAlert(subj,body){const to=emailCfg.email||'';if(!to){toast('⚠ Set email in Settings first','#FF000F');showPage('settings',document.querySelectorAll('.nav-item')[10]);return;}if(emailCfg.pubkey&&emailCfg.service&&emailCfg.template&&typeof emailjs!=='undefined'){emailjs.init(emailCfg.pubkey);emailjs.send(emailCfg.service,emailCfg.template,{to_email:to,cc_email:emailCfg.cc||'',subject:subj,message:body}).then(()=>{toast('✅ Email sent!','#22d3a5');logActivity('📧 Breach alert sent','#22d3a5');},()=>{toast('⚠ EmailJS failed — opening Outlook','#f5a623');openMailto(to,emailCfg.cc,subj,body);});}else if(emailCfg.mailtoFallback!==false){openMailto(to,emailCfg.cc,subj,body);}else{toast('⚠ Configure EmailJS in Settings','#FF000F');}}
+function openMailto(to,cc,subj,body){const a=document.createElement('a');a.href=`mailto:${to}${cc?'?cc='+cc+'&':'?'}subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;a.target='_blank';document.body.appendChild(a);a.click();document.body.removeChild(a);toast('📨 Opening Outlook...','#6764f6');}
+function openOutlookAlert(){const b=getBreaches();if(!b.length){toast('✅ No breaches!','#22d3a5');return;}openMailto(emailCfg.email||'',emailCfg.cc,`🚨 [ABB Procurement] ${b.length} Delivery Breach(es)`,buildEmailBody(b));}
+function testEmail(){const to=emailCfg.email;if(!to){toast('⚠ Enter your email first','#FF000F');return;}openMailto(to,'','[ABB Procurement CRM] Test Email','This is a test email from ABB Procurement CRM.\r\n\r\nDate: '+new Date().toLocaleString()+'\r\nABB Procurement CRM');}
+
+// ══ IMPORT / EXPORT ══
+let importRows=[];let bomImportRows=[];
+function openImportModal(type){document.getElementById('import-type').value=type;document.getElementById('import-file').value='';document.getElementById('import-preview').innerHTML='';document.getElementById('import-btn').style.display='none';importRows=[];const hints={orders:'Columns: PO # | Project Code | Supplier Name | Item/Description | Qty | Unit Price | Currency | Category | PO Sent Date | Expected Delivery Date | Exact Delivery Date | Status | Notes',procplan:'Columns: Project Code | IFAT Date | FAT Date | Delivery Date | Budget | Currency | Status | Notes',suppliers:'Columns: Name | Contact | Email | Phone | Country | Category'};document.getElementById('import-hint').textContent=hints[type]||'Upload Excel file';openModal('importModal');}
+function previewImport(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];importRows=XLSX.utils.sheet_to_json(ws,{defval:''});const prev=document.getElementById('import-preview');if(!importRows.length){prev.innerHTML='<div class="alert alert-warn">No data found.</div>';return;}prev.innerHTML=`<div class="alert alert-success">✅ Found <b>${importRows.length}</b> rows | Columns: ${Object.keys(importRows[0]).join(', ')}</div>`;document.getElementById('import-btn').style.display='flex';};reader.readAsArrayBuffer(file);}
+function confirmImport(){const type=document.getElementById('import-type').value;if(!importRows.length)return;const gc=(r,...keys)=>{
+  // Try exact match first
+  for(const k of keys){if(r[k]!==undefined&&r[k]!==null&&String(r[k]).trim()!==''&&String(r[k]).trim()!=='None')return String(r[k]).trim();}
+  // Try case-insensitive match
+  const rKeys=Object.keys(r);
+  for(const k of keys){
+    const kl=k.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const match=rKeys.find(rk=>rk.toLowerCase().replace(/[^a-z0-9]/g,'')=== kl);
+    if(match&&r[match]!==undefined&&r[match]!==null&&String(r[match]).trim()!==''&&String(r[match]).trim()!=='None')return String(r[match]).trim();
+  }
+  return '';};const fmtD=v=>{if(!v||v==='None'||v==='null')return'';try{
+  if(typeof v==='number'&&v>1000){const d=new Date(Date.UTC(1899,11,30)+v*86400000);return d.toISOString().slice(0,10);}
+  const s=String(v).trim().replace(/\s+/,' ');
+  if(!s||s==='None'||s==='null'||s==='undefined')return'';
+  // Handle "YYYY-MM-DD HH:MM:SS" format from Excel datetime
+  const isoMatch=s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if(isoMatch)return isoMatch[1];
+  // Handle DD/MM/YYYY or MM/DD/YYYY
+  const slashMatch=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if(slashMatch)return `${slashMatch[3]}-${slashMatch[2].padStart(2,'0')}-${slashMatch[1].padStart(2,'0')}`;
+  const d=new Date(s);return isNaN(d.getTime())?'':d.toISOString().slice(0,10);
+}catch{return'';}};let added=0,skipped=0;
+  if(type==='orders'){
+  // Collect all PO numbers in this import file
+  const incomingPoNos=new Set(importRows.map(r=>{
+    const raw=gc(r,'PO #','PO Number','PO No','Purchase Order #','Purchase Order Number','Order Number','Order No','PO');
+    const first=r[Object.keys(r)[0]];
+    return raw||(first&&String(first).trim()&&String(first).trim()!=='None'?String(first).trim():'');
+  }).filter(Boolean));
+  // Remove existing lines for those PO numbers (clean re-import)
+  data.orders=data.orders.filter(o=>!incomingPoNos.has(o.poNo||o.id));
+  importRows.forEach(r=>{const item=gc(r,'Item/Description','Item Description','Item','Description','Material Description','Material','Short Text','Item Text','PO Item Text','Material Text','Line Item Description','Desc');const sName=gc(r,'Supplier Name','Supplier','Vendor');if(!item&&!sName){skipped++;return;}let sup=data.suppliers.find(s=>s.name.toLowerCase()===sName.toLowerCase());if(!sup&&sName){sup={id:'S'+String(nextId.s++).padStart(3,'0'),name:sName,contact:'',email:'',phone:'',country:'',category:'General',createdAt:new Date().toISOString()};data.suppliers.push(sup);}const pCode=gc(r,'Project Code','Project');let proj=data.projects.find(p=>p.code.toLowerCase()===pCode.toLowerCase());const pName=gc(r,'Project Name');if(!proj&&(pCode||pName)){proj={id:'P'+String(nextId.p++).padStart(3,'0'),code:pCode||('PRJ-IMP-'+nextId.p),name:pName||pCode,manager:'',dept:'',start:'',end:'',budget:0,currency:'USD',status:'Active',color:'#6764f6',desc:'Auto-created',createdAt:new Date().toISOString()};data.projects.push(proj);}const qty=parseFloat(gc(r,'Qty','Quantity'))||1,price=parseFloat(gc(r,'Unit Price','Price'))||0;// Read actual PO number from Excel
+        const rawPoNo = gc(r,'PO #','PO Number','PO No','Purchase Order #','Purchase Order Number','Order Number','Order No','PO');
+        const firstColVal = r[Object.keys(r)[0]];
+        const poNo = rawPoNo||(firstColVal&&String(firstColVal).trim()&&String(firstColVal).trim()!=='None'?String(firstColVal).trim():'PO-IMP-'+nextId.o);
+        // Unique line id per row
+        const lineId='L'+String(nextId.o++).padStart(5,'0');
+        // Track line number per PO
+        const existingLines=data.orders.filter(x=>x.poNo===poNo).length;
+        data.orders.push({id:lineId,poNo,lineNo:existingLines+1,project:proj?proj.id:'',supplier:sup?sup.id:'',item,qty,price,currency:gc(r,'Currency')||'USD',amount:qty*price,category:gc(r,'Category')||'Other',sentDate:fmtD(r['PO Sent Date']||r['Sent Date']),expDelivery:fmtD(r['Expected Delivery Date']||r['Expected Delivery']),delivery:fmtD(r['Exact Delivery Date']||r['Exact Delivery']||r['Delivery Date']||r['Delivery']),status:gc(r,'Status')||'Draft',notes:gc(r,'Notes'),createdAt:new Date().toISOString()});added++;});}
+  else if(type==='suppliers'){importRows.forEach(r=>{const name=gc(r,'Name','Supplier Name','Supplier');if(!name){skipped++;return;}if(data.suppliers.find(s=>s.name.toLowerCase()===name.toLowerCase())){skipped++;return;}data.suppliers.push({id:'S'+String(nextId.s++).padStart(3,'0'),name,contact:gc(r,'Contact','Contact Person'),email:gc(r,'Email'),phone:gc(r,'Phone'),country:gc(r,'Country'),category:gc(r,'Category')||'General',notes:'',createdAt:new Date().toISOString()});added++;});}
+  else if(type==='procplan'){importRows.forEach(r=>{const pCode=gc(r,'Project Code','Project');const proj=data.projects.find(p=>p.code.toLowerCase()===pCode.toLowerCase());const del=fmtD(r['Delivery Date']||r['Delivery']);if(!del){skipped++;return;}data.procplans.push({id:'PP'+String(nextId.pp++).padStart(3,'0'),project:proj?proj.id:'',ifat:fmtD(r['IFAT Date']||r['IFAT']),fat:fmtD(r['FAT Date']||r['FAT']),delivery:del,budget:parseFloat(gc(r,'Budget'))||0,currency:gc(r,'Currency')||'USD',status:gc(r,'Status')||'Planned',notes:gc(r,'Notes')});added++;});}
+  logActivity(`📂 Imported ${added} ${type} records (${skipped} skipped)`,'#22d3a5');saveData();closeModal('importModal');const renders={orders:renderOrders,suppliers:renderSuppliers,procplan:renderProcPlan};if(renders[type])renders[type]();toast(`✅ Imported ${added} records`);}
+function downloadTemplate(){const type=document.getElementById('import-type').value;const wb=XLSX.utils.book_new();const templates={orders:[['PO #','Project Code','Project Name','Supplier Name','Item/Description','Qty','Unit Price','Currency','Total Amount','Category','PO Sent Date','Expected Delivery Date','Exact Delivery Date','Status','Notes'],['','IN27526001','RGLNG Phase 2','NIVOX TECHNOLOGIES','FO Patch Panel SM 6 Port',32,1500,'USD',48000,'Electrical','2026-01-15','2026-03-30','','Sent','']],suppliers:[['Name','Contact','Email','Phone','Country','Category'],['NIVOX TECHNOLOGIES','John Doe','john@nivox.com','+91 9999999999','India','Electrical']],procplan:[['Project Code','IFAT Date','FAT Date','Delivery Date','Budget','Currency','Status','Notes'],['IN27526001','2026-04-01','2026-05-01','2026-06-30',500000,'USD','Planned','']]};const data2=templates[type]||[['No template available']];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data2),type);XLSX.writeFile(wb,`${type}_template.xlsx`);toast('📄 Template downloaded','#6764f6');}
+// BOM Import
+function previewBOMImport(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];bomImportRows=XLSX.utils.sheet_to_json(ws,{defval:''});const prev=document.getElementById('bom-import-preview');if(!bomImportRows.length){prev.innerHTML='<div class="alert alert-warn">No data.</div>';return;}prev.innerHTML=`<div class="alert alert-success">✅ ${bomImportRows.length} rows found</div>`;document.getElementById('bom-import-btn').style.display='flex';};reader.readAsArrayBuffer(file);}
+function confirmBOMImport(){if(!bomImportRows.length)return;const gc=(r,...keys)=>{
+  // Try exact match first
+  for(const k of keys){if(r[k]!==undefined&&r[k]!==null&&String(r[k]).trim()!==''&&String(r[k]).trim()!=='None')return String(r[k]).trim();}
+  // Try case-insensitive match
+  const rKeys=Object.keys(r);
+  for(const k of keys){
+    const kl=k.toLowerCase().replace(/[^a-z0-9]/g,'');
+    const match=rKeys.find(rk=>rk.toLowerCase().replace(/[^a-z0-9]/g,'')=== kl);
+    if(match&&r[match]!==undefined&&r[match]!==null&&String(r[match]).trim()!==''&&String(r[match]).trim()!=='None')return String(r[match]).trim();
+  }
+  return '';};const groups={};bomImportRows.forEach(r=>{const no=gc(r,'BOM Number','BOM No','BOM #');if(!no)return;if(!groups[no])groups[no]=[];groups[no].push(r);});let added=0;Object.entries(groups).forEach(([no,rows])=>{const fr=rows[0];const pCode=gc(fr,'Project Code','Project');const proj=data.projects.find(p=>p.code.toLowerCase()===pCode.toLowerCase());let bom=data.boms.find(b=>b.bomNo===no);if(!bom){bom={id:'B'+String(nextId.b++).padStart(3,'0'),bomNo:no,project:proj?proj.id:'',rev:gc(fr,'Revision','Rev')||'A',description:gc(fr,'Description','BOM Description')||'',status:gc(fr,'BOM Status')||'Draft',items:[],createdAt:new Date().toISOString()};data.boms.push(bom);}rows.forEach(r=>{const desc=gc(r,'Item Description','Description','Item');if(!desc)return;const sName=gc(r,'Supplier Name','Supplier');const sup=sName?data.suppliers.find(s=>s.name.toLowerCase().includes(sName.toLowerCase())):null;bom.items.push({id:'BI'+String(nextId.bi++).padStart(4,'0'),lineNo:gc(r,'Line No','Line #')||String(bom.items.length+1).padStart(3,'0'),partNo:gc(r,'Part No','Part Number'),description:desc,supplier:sup?sup.id:'',qty:parseFloat(gc(r,'Qty','Quantity'))||1,unit:gc(r,'Unit')||'Nos',category:gc(r,'Category')||'Other',notes:gc(r,'Notes')||''});added++;});});logActivity(`📂 BOM Import: ${added} items`,'#22d3a5');saveData();closeModal('bomImportModal');renderBOM();toast(`✅ Imported ${added} BOM items`);}
+function downloadBOMTemplate(){const wb=XLSX.utils.book_new();const hdr=[['BOM Number','Project Code','Description','Revision','BOM Status','Line No','Part No','Item Description','Supplier Name','Qty','Unit','Category','Notes']];const sample=[['BOM-2026-001','IN27526001','RGLNG BOM','A','Draft','001','P-0001','FO Patch Panel SM 6 Port Duplex LC','NIVOX TECHNOLOGIES',32,'Nos','Electrical',''],['BOM-2026-001','IN27526001','RGLNG BOM','A','Draft','002','P-0002','Fiber Patch Cable SM 2m','NIVOX TECHNOLOGIES',32,'Nos','Electrical','']];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([...hdr,...sample]),'BOM');XLSX.writeFile(wb,'BOM_template.xlsx');toast('📄 Template downloaded','#6764f6');}
+function exportExcel(type){const wb=XLSX.utils.book_new();let d2=[],hdr=[];
+  if(type==='orders'){hdr=['PO #','Project Code','Project Name','Supplier','Item','Qty','Unit Price','Currency','Total','Category','PO Sent Date','Expected Delivery','Exact Delivery','Status','Notes'];d2=data.orders.map(o=>[o.id,getProjCode(o.project),getProjName(o.project),getSupName(o.supplier),o.item,o.qty,o.price,o.currency,o.amount,o.category,o.sentDate||'',o.expDelivery||'',o.delivery||'',o.status,o.notes||'']);}
+  else if(type==='suppliers'){hdr=['Name','Contact','Email','Phone','Country','Category'];d2=data.suppliers.map(s=>[s.name,s.contact||'',s.email||'',s.phone||'',s.country||'',s.category||'']);}
+  else if(type==='projects'){hdr=['Code','Name','Manager','Start','End','Budget','Currency','Status'];d2=data.projects.map(p=>[p.code,p.name,p.manager||'',p.start||'',p.end||'',p.budget||0,p.currency||'USD',p.status]);}
+  else if(type==='procplan'){hdr=['Plan #','Project Code','IFAT','FAT','Delivery','Budget','Currency','Status'];d2=data.procplans.map(p=>[p.id,getProjCode(p.project),p.ifat||'',p.fat||'',p.delivery||'',p.budget||0,p.currency||'USD',p.status]);}
+  else if(type==='rfq'){hdr=['RFQ #','Title','Project','Issue','Deadline','Value','Currency','Status'];d2=data.rfqs.map(r=>[r.id,r.title,getProjCode(r.project),r.issue||'',r.deadline||'',r.value||0,r.currency||'USD',r.status]);}
+  else if(type==='contracts'){hdr=['ID','Title','Supplier','Value','Currency','Start','End','Status'];d2=data.contracts.map(c=>[c.id,c.title,getSupName(c.supplier),c.value||0,c.currency||'USD',c.start||'',c.end||'',c.status]);}
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([hdr,...d2]),type);XLSX.writeFile(wb,`${type}_export_${new Date().toISOString().slice(0,10)}.xlsx`);toast('📥 Exported!','#22d3a5');}
+function exportBOM(){const wb=XLSX.utils.book_new();data.boms.forEach(b=>{const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),(b.bomNo||'BOM').slice(0,30));});XLSX.writeFile(wb,'BOM_Export_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 BOM exported!','#22d3a5');}
+function exportBOMDetail(){const b=getBOM(activeBOMId);if(!b)return;const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'BOM Detail');XLSX.writeFile(wb,'BOM_'+b.bomNo+'_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 Exported!','#22d3a5');}
+
+// ══ INIT ══
+if(emailCfg.pubkey&&typeof emailjs!=='undefined')emailjs.init(emailCfg.pubkey);
+fillDropdowns();
+renderDashboard();
+setInterval(()=>{const b=getBreaches();document.getElementById('breach-alert-top').style.display=b.length?'':'none';document.getElementById('breach-alert-top').textContent=b.length?`🚨 ${b.length} breach(es)`:'';},300000);
+
+// Position PO tooltip near mouse cursor
+document.addEventListener('mousemove', function(e){
+  const tips = document.querySelectorAll('.po-tooltip');
+  tips.forEach(tip=>{
+    if(tip.style.display==='block'||tip.parentElement.matches(':hover')){
+      let left = e.clientX + 18;
+      let top  = e.clientY - 10;
+      const tw = 340, th = 220;
+      if(left + tw > window.innerWidth)  left = e.clientX - tw - 10;
+      if(top  + th > window.innerHeight) top  = e.clientY - th - 10;
+      tip.style.position = 'fixed';
+      tip.style.left = left + 'px';
+      tip.style.top  = top  + 'px';
+    }
+  });
+});
+
+
+
+// ══ QUICK DATE EDIT ══
+function openQuickDateEdit(poNo){
+  // Get all lines for this PO
+  const lines=data.orders.filter(o=>(o.poNo||o.id)===poNo);
+  if(!lines.length){toast('PO not found','#FF000F');return;}
+  const first=lines[0];
+  const proj=getProjById(first.project);
+  // Use existing dates from any line
+  const sentDate    = lines.map(o=>o.sentDate).filter(Boolean).sort().pop()||'';
+  const expDelivery = lines.map(o=>o.expDelivery).filter(Boolean).sort().pop()||'';
+  const delivery    = lines.map(o=>o.delivery).filter(Boolean).sort().pop()||'';
+
+  document.getElementById('qd-id').value=poNo;
+  document.getElementById('qd-sent').value=sentDate;
+  document.getElementById('qd-exp').value=expDelivery;
+  document.getElementById('qd-delivery').value=delivery;
+  document.getElementById('qd-po-info').innerHTML=`
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div><span style="color:var(--muted);font-size:.72rem">PO #</span><br><b style="color:var(--abb-lilac)">${poNo}</b></div>
+      <div><span style="color:var(--muted);font-size:.72rem">Lines</span><br><b>${lines.length} item${lines.length>1?'s':''}</b></div>
+      <div style="flex:1"><span style="color:var(--muted);font-size:.72rem">Supplier</span><br>${getSupName(first.supplier)}</div>
+      ${proj?`<div><span style="color:var(--muted);font-size:.72rem">Project</span><br><span class="badge badge-purple">${proj.code}</span></div>`:''}
+    </div>`;
+  openModal('quickDateModal');
+}
+function saveQuickDates(){
+  const poNo=document.getElementById('qd-id').value;
+  // Update ALL line items of this PO
+  const lines=data.orders.filter(x=>(x.poNo||x.id)===poNo);
+  if(!lines.length){toast('PO not found','#FF000F');return;}
+  const sent=document.getElementById('qd-sent').value;
+  const exp =document.getElementById('qd-exp').value;
+  const del =document.getElementById('qd-delivery').value;
+  lines.forEach(o=>{
+    if(sent) o.sentDate=sent;
+    if(exp)  o.expDelivery=exp;
+    if(del){ o.delivery=del; if(!['Closed','Cancelled'].includes(o.status)) o.status='Delivered'; }
+  });
+  logActivity(`📅 Dates updated for PO: <b>${poNo}</b> (${lines.length} lines)`,'#22d3a5');
+  saveData(); closeModal('quickDateModal'); renderOrders();
+  toast('✅ Dates saved for all '+lines.length+' line items');
+}
+
+
+// ══ PO LINE ITEMS VIEWER ══
+function openPOLines(poId){
+  // Filter by poNo field (new) with fallback to id (legacy)
+  const lines = data.orders.filter(o => (o.poNo||o.id) === poId);
+  if(!lines.length){ toast('No lines found for PO: ' + poId, '#FF000F'); return; }
+
+  const first = lines[0];
+  const proj  = getProjById(first.project);
+  const sup   = getSupById(first.supplier);
+  const curr  = first.currency || 'USD';
+  const sym   = curr==='INR'?'₹':curr==='EUR'?'€':curr==='GBP'?'£':'$';
+  const totalAmt = lines.reduce((s,o)=>s+Number(o.amount||0), 0);
+  const totalQty = lines.reduce((s,o)=>s+Number(o.qty||0), 0);
+
+  // Resolve dates from any line that has them
+  const sentDate    = lines.map(o=>o.sentDate).filter(Boolean).sort().pop() || '';
+  const expDelivery = lines.map(o=>o.expDelivery).filter(Boolean).sort().pop() || '';
+  const delivery    = lines.map(o=>o.delivery).filter(Boolean).sort().pop() || '';
+
+  document.getElementById('po-lines-header').innerHTML = `
+    <div style="border-bottom:2px solid rgba(103,100,246,.3);padding-bottom:14px;margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="font-size:1.3rem;font-weight:900;color:#a5b4fc">📦 PO # ${poId}</div>
+        ${statusBadge(first.status)}
+      </div>
+      <div class="po-lines-summary">
+        <div><div class="sm-label">Project</div><div class="sm-val">${proj ? proj.code+' – '+proj.name : '—'}</div></div>
+        <div><div class="sm-label">Supplier</div><div class="sm-val">${sup ? sup.name : getSupName(first.supplier)}</div></div>
+        <div><div class="sm-label">PO Sent Date</div><div class="sm-val">${fmtDate(sentDate)||'—'}</div></div>
+        <div><div class="sm-label">Exp. Delivery</div><div class="sm-val">${fmtDate(expDelivery)||'—'}</div></div>
+        <div><div class="sm-label">Exact Delivery</div><div class="sm-val" style="color:#22d3a5">${fmtDate(delivery)||'—'}</div></div>
+        <div><div class="sm-label">Total Lines</div><div class="sm-val">${lines.length}</div></div>
+        <div><div class="sm-label">Total Qty</div><div class="sm-val">${totalQty.toLocaleString()}</div></div>
+        <div><div class="sm-label">Total Value</div><div class="sm-val" style="color:#22d3a5">${sym}${totalAmt.toLocaleString()} ${curr}</div></div>
+      </div>
+    </div>`;
+
+  document.getElementById('po-lines-body').innerHTML = lines.map((o,i)=>{
+    const lSym=(o.currency||'USD')==='INR'?'₹':(o.currency||'USD')==='EUR'?'€':(o.currency||'USD')==='GBP'?'£':'$';
+    const lineNum = o.lineNo||i+1;
+    // Use item description if available, else build a smart auto-label
+    const hasDesc = o.item && o.item.trim() && o.item.trim()!=='—';
+    const itemLabel = hasDesc
+      ? o.item.trim()
+      : `<span style="color:#94a3b8;font-style:italic">No description provided</span>`;
+    const subLabel = !hasDesc
+      ? `<div style="font-size:.72rem;color:#a5b4fc;margin-top:3px">Qty: <b>${Number(o.qty||0).toLocaleString()}</b> × ${lSym}${Number(o.price||0).toLocaleString()} per unit</div>`
+      : '';
+    return `<tr>
+      <td style="color:#7c7fa8;text-align:center;font-size:.75rem;font-weight:700">${lineNum}</td>
+      <td>
+        <div style="font-weight:600;color:#e2e8f0">${itemLabel}</div>
+        ${subLabel}
+        ${o.notes?`<div style="font-size:.72rem;color:#7c7fa8;margin-top:2px">📝 ${o.notes}</div>`:''}
+      </td>
+      <td style="text-align:center;font-weight:700;color:#c7d2fe">${Number(o.qty||0).toLocaleString()}</td>
+      <td style="text-align:right;color:#e2e8f0">${lSym}${Number(o.price||0).toLocaleString()}</td>
+      <td style="text-align:right;font-weight:800;color:#22d3a5">${lSym}${Number(o.amount||0).toLocaleString()}</td>
+      <td style="text-align:center"><span class="badge badge-blue" style="font-size:.68rem">${o.category||'—'}</span></td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('po-lines-footer').innerHTML = `
+    <tr style="border-top:2px solid rgba(103,100,246,.4);background:rgba(103,100,246,.1)">
+      <td colspan="2" style="padding:10px 12px;font-weight:800;color:#a5b4fc;font-size:.83rem">
+        TOTAL — ${lines.length} line item${lines.length>1?'s':''}
+      </td>
+      <td style="padding:10px 12px;text-align:center;font-weight:800;color:#c7d2fe">${totalQty.toLocaleString()}</td>
+      <td style="padding:10px 12px;text-align:right;color:#7c7fa8">—</td>
+      <td style="padding:10px 12px;text-align:right;font-weight:900;font-size:.95rem;color:#22d3a5">${sym}${totalAmt.toLocaleString()} ${curr}</td>
+      <td></td>
+    </tr>`;
+
+  // Show note if item descriptions are missing
+  const missingDesc = lines.every(o=>!o.item||!o.item.trim()||o.item.trim()==='—');
+  const noteEl = document.getElementById('po-lines-note');
+  if(noteEl){
+    noteEl.style.display = missingDesc ? 'block' : 'none';
+  }
+  document.getElementById('po-lines-edit-btn').onclick = ()=>{ closeModal('poLinesModal'); openQuickDateEdit(poId); };
+  openModal('poLinesModal');
+}
+
+
+function deletePOGroup(poNo){
+  const lines=data.orders.filter(o=>(o.poNo||o.id)===poNo);
+  if(!confirm('Delete PO '+poNo+' and all '+lines.length+' line item(s)? This cannot be undone.'))return;
+  data.orders=data.orders.filter(o=>(o.poNo||o.id)!==poNo);
+  logActivity(`🗑 PO deleted: <b>${poNo}</b> (${lines.length} lines)`,'#FF000F');
+  saveData(); renderOrders(); toast('🗑 PO '+poNo+' deleted','#FF000F');
+}
+
+
+
+
+// ── IFAT BREACH DETAIL POPUP ──────────────────────────────
+function showIFATBreachDetail(planId){
+  const plan=data.procplans.find(p=>p.id===planId);
+  if(!plan||!plan.ifat)return;
+
+  const ifatD=new Date(plan.ifat+'T00:00:00');
+  const safeD=new Date(ifatD); safeD.setDate(safeD.getDate()-5);
+  const safeDateStr=safeD.toISOString().slice(0,10);
+  const proj=getProjById(plan.project);
+
+  // Get deduped PO list for this project
+  const poMap={};
+  data.orders.filter(o=>o.project===plan.project&&(o.expDelivery||o.delivery)&&!['Cancelled','Closed'].includes(o.status))
+    .forEach(o=>{
+      const poNo=o.poNo||o.id;
+      const d=o.expDelivery||o.delivery;
+      if(!poMap[poNo]||d>poMap[poNo].date) poMap[poNo]={date:d,o};
+    });
+
+  const allPOs=Object.values(poMap);
+  const breached=allPOs.filter(({date})=>new Date(date+'T00:00:00')>ifatD);
+  const warned  =allPOs.filter(({date})=>{const d=new Date(date+'T00:00:00');return d>safeD&&d<=ifatD;});
+  const safe    =allPOs.filter(({date})=>new Date(date+'T00:00:00')<=safeD);
+
+  const rows=[
+    ...breached.map(({date,o})=>({...o,_poDate:date,_type:'breach'})),
+    ...warned  .map(({date,o})=>({...o,_poDate:date,_type:'warning'})),
+    ...safe    .map(({date,o})=>({...o,_poDate:date,_type:'safe'}))
+  ];
+
+  const modal=document.getElementById('ifatDetailModal');
+  document.getElementById('ifat-detail-body').innerHTML=`
+    <div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid rgba(103,100,246,.3)">
+      <div style="font-size:1.1rem;font-weight:800;color:#a5b4fc;margin-bottom:10px">📋 ${proj?proj.code+' – '+proj.name:planId}</div>
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:.82rem">
+        <div><span style="color:#7c7fa8">IFAT Date:</span> <b style="color:#6764f6">${fmtDate(plan.ifat)}</b></div>
+        <div><span style="color:#7c7fa8">Safe Date (IFAT−5d):</span> <b style="color:#22d3a5">${fmtDate(safeDateStr)}</b></div>
+        <div><span style="color:#7c7fa8">FAT Date:</span> <b style="color:#f5a623">${fmtDate(plan.fat)||'—'}</b></div>
+        <div><span style="color:#7c7fa8">Delivery:</span> <b style="color:#FF000F">${fmtDate(plan.delivery)||'—'}</b></div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+        ${breached.length?`<span class="badge badge-red">🚨 ${breached.length} Breach${breached.length>1?'es':''}</span>`:''}
+        ${warned.length  ?`<span class="badge badge-yellow">⚠ ${warned.length} At Risk</span>`:''}
+        ${safe.length    ?`<span class="badge badge-green">✅ ${safe.length} Safe</span>`:''}
+      </div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:.8rem">
+      <thead><tr style="background:rgba(103,100,246,.12)">
+        <th style="padding:8px 10px;color:#a5b4fc;text-align:left">Status</th>
+        <th style="padding:8px 10px;color:#a5b4fc;text-align:left">PO #</th>
+        <th style="padding:8px 10px;color:#a5b4fc;text-align:left">Supplier</th>
+        <th style="padding:8px 10px;color:#a5b4fc;text-align:center">Exp. Delivery</th>
+        <th style="padding:8px 10px;color:#a5b4fc;text-align:center">vs Safe Date</th>
+        <th style="padding:8px 10px;color:#a5b4fc;text-align:center">vs IFAT</th>
+      </tr></thead>
+      <tbody>
+      ${rows.map(o=>{
+        const poD=new Date(o._poDate+'T00:00:00');
+        const daysToIFAT=Math.ceil((ifatD-poD)/86400000);  // +ve = before IFAT (good)
+        const daysToSafe=Math.ceil((safeD-poD)/86400000);  // +ve = before safe (very good)
+        const bg=o._type==='breach'?'rgba(255,0,15,.06)':o._type==='warning'?'rgba(245,166,35,.06)':'rgba(34,211,165,.04)';
+        const typeBadge=o._type==='breach'
+          ?'<span class="badge badge-red" style="font-size:.65rem">🚨 BREACH</span>'
+          :o._type==='warning'
+            ?'<span class="badge badge-yellow" style="font-size:.65rem">⚠ AT RISK</span>'
+            :'<span class="badge badge-green" style="font-size:.65rem">✅ SAFE</span>';
+        const ifatLabel=o._type==='breach'
+          ?`<span style="color:#FF000F;font-weight:700">${Math.abs(daysToIFAT)}d AFTER</span>`
+          :`<span style="color:${o._type==='warning'?'#f5a623':'#22d3a5'};font-weight:700">${daysToIFAT}d before</span>`;
+        const safeLabel=daysToSafe>0
+          ?`<span style="color:#22d3a5">${daysToSafe}d early</span>`
+          :`<span style="color:#f5a623">${Math.abs(daysToSafe)}d late</span>`;
+        return `<tr style="border-bottom:1px solid rgba(103,100,246,.08);background:${bg}">
+          <td style="padding:8px 10px">${typeBadge}</td>
+          <td style="padding:8px 10px;font-weight:700;color:#a5b4fc">${o.poNo||o.id}</td>
+          <td style="padding:8px 10px">${getSupName(o.supplier)}</td>
+          <td style="padding:8px 10px;text-align:center;font-weight:700">${fmtDate(o._poDate)}</td>
+          <td style="padding:8px 10px;text-align:center">${safeLabel}</td>
+          <td style="padding:8px 10px;text-align:center">${ifatLabel}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>`;
+  modal.classList.add('open');
+}
+
+</script>
+</body>
+</html>
