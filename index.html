@@ -212,8 +212,9 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
   <div class="section-header">
     <h3>🗂 Projects</h3>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary btn-sm" onclick="exportExcel('projects')">📥 Export</button>
-      <button class="btn btn-primary" onclick="openModal('projectModal')">➕ New Project</button>
+<button class="btn btn-secondary btn-sm" onclick="exportExcel('projects')">📥 Export</button>
+<button class="btn btn-outline btn-sm" onclick="openImportModal('projects')">📂 Import</button>
+<button class="btn btn-primary" onclick="openModal('projectModal')">➕ New Project</button>
     </div>
   </div>
   <div class="filters-bar">
@@ -253,8 +254,9 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
   <div class="section-header">
     <h3>📄 RFQ</h3>
     <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary btn-sm" onclick="exportExcel('rfq')">📥 Export</button>
-      <button class="btn btn-primary" onclick="openModal('rfqModal')">➕ New RFQ</button>
+<button class="btn btn-secondary btn-sm" onclick="exportExcel('rfq')">📥 Export</button>
+<button class="btn btn-outline btn-sm" onclick="openImportModal('rfq')">📂 Import</button>
+<button class="btn btn-primary" onclick="openModal('rfqModal')">➕ New RFQ</button>
     </div>
   </div>
   <div class="filters-bar">
@@ -1920,7 +1922,13 @@ function testEmail(){const to=emailCfg.email;if(!to){toast('⚠ Enter your email
 
 // ══ IMPORT / EXPORT ══
 let importRows=[];let bomImportRows=[];
-function openImportModal(type){document.getElementById('import-type').value=type;document.getElementById('import-file').value='';document.getElementById('import-preview').innerHTML='';document.getElementById('import-btn').style.display='none';importRows=[];const hints={orders:'Columns: PO # | Project Code | Supplier Name | Item/Description | Qty | Unit Price | Currency | Category | PO Sent Date | Expected Delivery Date | Exact Delivery Date | Status | Notes',procplan:'Columns: Project Code | IFAT Date | FAT Date | Delivery Date | Budget | Currency | Status | Notes',suppliers:'Columns: Name | Contact | Email | Phone | Country | Category'};document.getElementById('import-hint').textContent=hints[type]||'Upload Excel file';openModal('importModal');}
+function openImportModal(type){document.getElementById('import-type').value=type;document.getElementById('import-file').value='';document.getElementById('import-preview').innerHTML='';document.getElementById('import-btn').style.display='none';importRows=[];const hints={
+  orders:    'Columns: PO # | Project Code | Supplier Name | Item/Description | Qty | Unit Price | Currency | Category | PO Sent Date | Expected Delivery Date | Exact Delivery Date | Status | Notes',
+  procplan:  'Columns: Project Code | IFAT Date | FAT Date | Delivery Date | Budget | Currency | Status | Notes',
+  suppliers: 'Columns: Name | Contact | Email | Phone | Country | Category',
+  projects:  'Columns: Project Code | Project Name | Manager | Department | Start Date | End Date | Budget | Currency | Status | Description',
+  rfq:       'Columns: RFQ Title | Project Code | Supplier Name | Issue Date | Deadline | Estimated Value | Currency | Status | Description'
+};document.getElementById('import-hint').textContent=hints[type]||'Upload Excel file';openModal('importModal');}
 function previewImport(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];importRows=XLSX.utils.sheet_to_json(ws,{defval:''});const prev=document.getElementById('import-preview');if(!importRows.length){prev.innerHTML='<div class="alert alert-warn">No data found.</div>';return;}prev.innerHTML=`<div class="alert alert-success">✅ Found <b>${importRows.length}</b> rows | Columns: ${Object.keys(importRows[0]).join(', ')}</div>`;document.getElementById('import-btn').style.display='flex';};reader.readAsArrayBuffer(file);}
 function confirmImport(){const type=document.getElementById('import-type').value;if(!importRows.length)return;const gc=(r,...keys)=>{
   // Try exact match first
@@ -1964,8 +1972,75 @@ function confirmImport(){const type=document.getElementById('import-type').value
         data.orders.push({id:lineId,poNo,lineNo:existingLines+1,project:proj?proj.id:'',supplier:sup?sup.id:'',item,qty,price,currency:gc(r,'Currency')||'USD',amount:qty*price,category:gc(r,'Category')||'Other',sentDate:fmtD(r['PO Sent Date']||r['Sent Date']),expDelivery:fmtD(r['Expected Delivery Date']||r['Expected Delivery']),delivery:fmtD(r['Exact Delivery Date']||r['Exact Delivery']||r['Delivery Date']||r['Delivery']),status:gc(r,'Status')||'Draft',notes:gc(r,'Notes'),createdAt:new Date().toISOString()});added++;});}
   else if(type==='suppliers'){importRows.forEach(r=>{const name=gc(r,'Name','Supplier Name','Supplier');if(!name){skipped++;return;}if(data.suppliers.find(s=>s.name.toLowerCase()===name.toLowerCase())){skipped++;return;}data.suppliers.push({id:'S'+String(nextId.s++).padStart(3,'0'),name,contact:gc(r,'Contact','Contact Person'),email:gc(r,'Email'),phone:gc(r,'Phone'),country:gc(r,'Country'),category:gc(r,'Category')||'General',notes:'',createdAt:new Date().toISOString()});added++;});}
   else if(type==='procplan'){importRows.forEach(r=>{const pCode=gc(r,'Project Code','Project');const proj=data.projects.find(p=>p.code.toLowerCase()===pCode.toLowerCase());const del=fmtD(r['Delivery Date']||r['Delivery']);if(!del){skipped++;return;}data.procplans.push({id:'PP'+String(nextId.pp++).padStart(3,'0'),project:proj?proj.id:'',ifat:fmtD(r['IFAT Date']||r['IFAT']),fat:fmtD(r['FAT Date']||r['FAT']),delivery:del,budget:parseFloat(gc(r,'Budget'))||0,currency:gc(r,'Currency')||'USD',status:gc(r,'Status')||'Planned',notes:gc(r,'Notes')});added++;});}
-  logActivity(`📂 Imported ${added} ${type} records (${skipped} skipped)`,'#22d3a5');saveData();closeModal('importModal');const renders={orders:renderOrders,suppliers:renderSuppliers,procplan:renderProcPlan};if(renders[type])renders[type]();toast(`✅ Imported ${added} records`);}
-function downloadTemplate(){const type=document.getElementById('import-type').value;const wb=XLSX.utils.book_new();const templates={orders:[['PO #','Project Code','Project Name','Supplier Name','Item/Description','Qty','Unit Price','Currency','Total Amount','Category','PO Sent Date','Expected Delivery Date','Exact Delivery Date','Status','Notes'],['','IN27526001','RGLNG Phase 2','NIVOX TECHNOLOGIES','FO Patch Panel SM 6 Port',32,1500,'USD',48000,'Electrical','2026-01-15','2026-03-30','','Sent','']],suppliers:[['Name','Contact','Email','Phone','Country','Category'],['NIVOX TECHNOLOGIES','John Doe','john@nivox.com','+91 9999999999','India','Electrical']],procplan:[['Project Code','IFAT Date','FAT Date','Delivery Date','Budget','Currency','Status','Notes'],['IN27526001','2026-04-01','2026-05-01','2026-06-30',500000,'USD','Planned','']]};const data2=templates[type]||[['No template available']];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data2),type);XLSX.writeFile(wb,`${type}_template.xlsx`);toast('📄 Template downloaded','#6764f6');}
+else if(type==='projects'){
+    importRows.forEach(r=>{
+      const code=gc(r,'Project Code','Code');
+      const name=gc(r,'Project Name','Name');
+      if(!code||!name){skipped++;return;}
+      // Skip if project code already exists
+      if(data.projects.find(p=>p.code.toLowerCase()===code.toLowerCase())){skipped++;return;}
+      data.projects.push({
+        id:'P'+String(nextId.p++).padStart(3,'0'),
+        code, name,
+        manager: gc(r,'Manager'),
+        dept:    gc(r,'Department','Dept'),
+        start:   fmtD(r['Start Date']||r['Start']),
+        end:     fmtD(r['End Date']||r['End']),
+        budget:  parseFloat(gc(r,'Budget'))||0,
+        currency:gc(r,'Currency')||'USD',
+        status:  gc(r,'Status')||'Active',
+        color:   '#6764f6',
+        desc:    gc(r,'Description','Desc')||'',
+        createdAt: new Date().toISOString()
+      });
+      added++;
+    });
+  }
+  else if(type==='rfq'){
+    importRows.forEach(r=>{
+      const title=gc(r,'RFQ Title','Title');
+      if(!title){skipped++;return;}
+      const pCode=gc(r,'Project Code','Project');
+      const proj=data.projects.find(p=>p.code.toLowerCase()===pCode.toLowerCase());
+      const sName=gc(r,'Supplier Name','Supplier');
+      const sup=sName?data.suppliers.find(s=>s.name.toLowerCase()===sName.toLowerCase()):null;
+      data.rfqs.push({
+        id:       'RFQ'+String(nextId.r++).padStart(4,'0'),
+        title,
+        project:  proj?proj.id:'',
+        supplier: sup?sup.id:'',
+        issue:    fmtD(r['Issue Date']||r['Issue']),
+        deadline: fmtD(r['Deadline']),
+        value:    parseFloat(gc(r,'Estimated Value','Value'))||0,
+        currency: gc(r,'Currency')||'USD',
+        status:   gc(r,'Status')||'Draft',
+        desc:     gc(r,'Description','Desc')||''
+      });
+      added++;
+    });
+  }
+
+logActivity(`📂 Imported ${added} ${type} records (${skipped} skipped)`,'#22d3a5');
+saveData();closeModal('importModal');
+const renders={
+  orders:renderOrders, suppliers:renderSuppliers,
+  procplan:renderProcPlan, projects:renderProjects, rfq:renderRFQ
+};
+if(renders[type])renders[type]();
+toast(`✅ Imported ${added} records`);}
+function downloadTemplate(){const type=document.getElementById('import-type').value;const wb=XLSX.utils.book_new();
+                            const templates={
+  orders:   [['PO #','Project Code','Project Name','Supplier Name','Item/Description','Qty','Unit Price','Currency','Total Amount','Category','PO Sent Date','Expected Delivery Date','Exact Delivery Date','Status','Notes'],
+             ['','IN27526001','RGLNG Phase 2','NIVOX TECHNOLOGIES','FO Patch Panel SM 6 Port',32,1500,'USD',48000,'Electrical','2026-01-15','2026-03-30','','Sent','']],
+  suppliers:[['Name','Contact','Email','Phone','Country','Category'],
+             ['NIVOX TECHNOLOGIES','John Doe','john@nivox.com','+91 9999999999','India','Electrical']],
+  procplan: [['Project Code','IFAT Date','FAT Date','Delivery Date','Budget','Currency','Status','Notes'],
+             ['IN27526001','2026-04-01','2026-05-01','2026-06-30',500000,'USD','Planned','']],
+  projects: [['Project Code','Project Name','Manager','Department','Start Date','End Date','Budget','Currency','Status','Description'],
+             ['IN27526001','RGLNG Phase 2','Ranjith Kumar','Procurement','2026-01-01','2026-12-31',500000,'USD','Active','LNG procurement project']],
+  rfq:      [['RFQ Title','Project Code','Supplier Name','Issue Date','Deadline','Estimated Value','Currency','Status','Description'],
+             ['Fiber Optic Cabling RFQ','IN27526001','NIVOX TECHNOLOGIES','2026-01-10','2026-01-25',50000,'USD','Draft','FO patch panels and cables']]
+};const data2=templates[type]||[['No template available']];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data2),type);XLSX.writeFile(wb,`${type}_template.xlsx`);toast('📄 Template downloaded','#6764f6');}
 // BOM Import
 function previewBOMImport(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];bomImportRows=XLSX.utils.sheet_to_json(ws,{defval:''});const prev=document.getElementById('bom-import-preview');if(!bomImportRows.length){prev.innerHTML='<div class="alert alert-warn">No data.</div>';return;}prev.innerHTML=`<div class="alert alert-success">✅ ${bomImportRows.length} rows found</div>`;document.getElementById('bom-import-btn').style.display='flex';};reader.readAsArrayBuffer(file);}
 function confirmBOMImport(){if(!bomImportRows.length)return;const gc=(r,...keys)=>{
