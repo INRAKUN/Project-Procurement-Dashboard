@@ -854,56 +854,6 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 .gz-btn{padding:6px 14px;border:none;background:transparent;color:#a5b4fc;cursor:pointer;font-size:.8rem;font-weight:600;}
 .gz-active{background:#6764f6!important;color:#fff!important;}
 
-/* PO Hover Tooltip */
-.po-tip-wrap { position: relative; display: inline-block; }
-.po-tip-wrap .po-tooltip {
-  display: none;
-  position: fixed;
-  z-index: 9999;
-  background: #1e1e4a;
-  border: 1px solid rgba(103,100,246,.5);
-  color: #e2e8f0;
-  border-radius: 12px;
-  padding: 14px 16px;
-  font-size: .8rem;
-  pointer-events: none;
-  min-width: 260px;
-  max-width: 340px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.5);
-  line-height: 1.9;
-}
-.po-tip-wrap:hover .po-tooltip { display: block; }
-.po-id-link {
-  color: var(--abb-lilac);
-  font-weight: 800;
-  cursor: pointer;
-  text-decoration: underline dotted;
-  font-size: .85rem;
-}
-
-
-/* PO Lines Modal */
-#po-lines-body tr { border-bottom: 1px solid rgba(103,100,246,.1); transition: background .15s; }
-#po-lines-body tr:hover { background: rgba(103,100,246,.07); }
-#po-lines-body td { padding: 10px 12px; font-size: .82rem; color: #e2e8f0; }
-.po-lines-summary { background: rgba(34,211,165,.08); border: 1px solid rgba(34,211,165,.25); border-radius:10px; padding:14px 18px; margin-bottom:16px; display:flex; gap:24px; flex-wrap:wrap; }
-.po-lines-summary .sm-label { font-size:.7rem; color:#7c7fa8; margin-bottom:2px; }
-.po-lines-summary .sm-val   { font-size:.9rem; font-weight:800; color:#e2e8f0; }
-
-</style>
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 <!-- QUICK DATE EDIT MODAL -->
 <div class="modal-overlay" id="quickDateModal">
@@ -1230,11 +1180,17 @@ function fillDropdowns(){
   } catch(err) {
     console.error('fillDropdowns error:', err);
   }
+}
 
 // ══════════════════════════════════════════
-//  TOPBAR DATE
+//  TOPBAR DATE (Safe Check)
 // ══════════════════════════════════════════
-document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+document.addEventListener('DOMContentLoaded', function() {
+  const dateEl = document.getElementById('topbar-date');
+  if(dateEl) {
+    dateEl.textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+  }
+});
 
 // ══════════════════════════════════════════
 //  STARTUP (FIXED)
