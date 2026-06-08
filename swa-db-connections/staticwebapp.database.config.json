@@ -1,1 +1,20 @@
-
+{
+  "$schema": "https://dataapibuilder.azureedge.net/schemas/v1.0.0-referenceschema.json",
+  "data-source": {
+    "database-type": "cosmosdb_nosql",
+    "options": {
+      "database": "Procurementexecution database"
+    }
+  },
+  "entities": {
+    "Item": {
+      "source": "Task",
+      "permissions": [
+        {
+          "role": "anonymous",
+          "actions": ["*"]
+        }
+      ]
+    }
+  }
+}
