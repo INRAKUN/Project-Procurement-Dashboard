@@ -1,1 +1,5 @@
-
+type Item @model {
+  id: ID!
+  title: String
+  completed: Boolean
+}
