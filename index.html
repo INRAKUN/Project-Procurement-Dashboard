@@ -1000,13 +1000,18 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 
 <script>
 
+// ══════════════════════════════════════════
+//  AZURE COSMOS DB CONFIGURATION
+// ══════════════════════════════════════════
+const COSMOS_ENDPOINT = "https://procurementexecution-cosmodb.documents.azure.com:443/";
+const COSMOS_KEY = "Ti0PWtmS38kvpBlvJhcK8BmTeWWBSjS09CXS0AtEr2hdbMkNcjUl0pWNfZiZsz0bbxM9pNyzWwJYACDbG1jsDA==";
+const COSMOS_DB = "Procurementexecution database";
+const COSMOS_CONTAINER = "Task";
+const COSMOS_DOC_ID = "crmMainData";
 
-
-
-
-
-
-
+async function getCosmosAuthHeader(...) { ... }
+async function saveToCosmosDB() { ... }
+async function loadFromCosmosDB() { ... }
 
 // ══════════════════════════════════════════
 //  DATA STORE
@@ -1026,7 +1031,11 @@ if(!data.reminders) data.reminders=[];
 if(!data.activity)  data.activity=[];
 
 let nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
-function saveData(){ data.nextId=nextId; localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+function saveData() {
+  data.nextId = nextId;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); // instant local
+  saveToCosmosDB(); // background cloud sync
+}
 
 // ══════════════════════════════════════════
 //  MODAL SYSTEM (all use .open class ONLY)
@@ -1161,7 +1170,8 @@ function fillDropdowns(){
 //  TOPBAR DATE
 // ══════════════════════════════════════════
 document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
-
+// ── Startup ──
+loadFromCosmosDB();
 
 
 // ══ DASHBOARD ══
@@ -2319,118 +2329,6 @@ function showIFATBreachDetail(planId){
 </script>
 </body>
 </html>
-// ══════════════════════════════════════════
-//  AZURE COSMOS DB CONFIGURATION
-// ══════════════════════════════════════════
-const COSMOS_ENDPOINT = "https://procurementexecution-cosmodb.documents.azure.com:443/";
-const COSMOS_KEY = "Ti0PWtmS38kvpBlvJhcK8BmTeWWBSjS09CXS0AtEr2hdbMkNcjUl0pWNfZiZsz0bbxM9pNyzWwJYACDbG1jsDA==";
-const COSMOS_DB = "Procurementexecution database";
-const COSMOS_CONTAINER = "Task";
-const COSMOS_DOC_ID = "crmMainData";
 
-// Generate HMAC-SHA256 auth token for Cosmos DB REST API
-async function getCosmosAuthHeader(verb, resourceType, resourceLink, date) {
-  const key = Uint8Array.from(atob(COSMOS_KEY), c => c.charCodeAt(0));
-  const text = (verb.toLowerCase() + "\n" + resourceType.toLowerCase() + "\n"
-              + resourceLink + "\n" + date.toLowerCase() + "\n" + "" + "\n");
-  const cryptoKey = await crypto.subtle.importKey(
-    "raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]
-  );
-  const signature = await crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(text));
-  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
-  return encodeURIComponent("type=master&ver=1.0&sig=" + sigBase64);
-}
 
-// Save data to Azure Cosmos DB
-async function saveToCosmosDB() {
-  try {
-    const date = new Date().toUTCString();
-    const resourceLink = `dbs/${COSMOS_DB}/colls/${COSMOS_CONTAINER}/docs/${COSMOS_DOC_ID}`;
-    const auth = await getCosmosAuthHeader("PUT", "docs", resourceLink, date);
-    const payload = { ...data, id: COSMOS_DOC_ID, "task.id": COSMOS_DOC_ID, nextId };
-    const url = `${COSMOS_ENDPOINT}dbs/${encodeURIComponent(COSMOS_DB)}/colls/${COSMOS_CONTAINER}/docs/${COSMOS_DOC_ID}`;
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "Authorization": auth,
-        "x-ms-date": date,
-        "x-ms-version": "2018-12-31",
-        "x-ms-documentdb-is-upsert": "true",
-        "x-ms-partitionkey": `["${COSMOS_DOC_ID}"]`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    });
-    if (response.ok) {
-      console.log("✅ Azure Cosmos DB sync OK");
-      toast("☁️ Synced to Azure Cosmos DB!", "#22d3a5");
-    } else {
-      const err = await response.text();
-      console.warn("⚠ Cosmos DB save failed:", err);
-    }
-  } catch(e) {
-    console.warn("⚠ Cosmos DB save error:", e);
-    toast("⚠ Cosmos DB unreachable. Check CORS settings.", "#FF000F");
-  }
-}
-
-// Load data from Azure Cosmos DB on startup
-async function loadFromCosmosDB() {
-  try {
-    const date = new Date().toUTCString();
-    const resourceLink = `dbs/${COSMOS_DB}/colls/${COSMOS_CONTAINER}/docs/${COSMOS_DOC_ID}`;
-    const auth = await getCosmosAuthHeader("GET", "docs", resourceLink, date);
-    const url = `${COSMOS_ENDPOINT}dbs/${encodeURIComponent(COSMOS_DB)}/colls/${COSMOS_CONTAINER}/docs/${COSMOS_DOC_ID}`;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Authorization": auth,
-        "x-ms-date": date,
-        "x-ms-version": "2018-12-31",
-        "x-ms-partitionkey": `["${COSMOS_DOC_ID}"]`,
-        "Content-Type": "application/json"
-      }
-    });
-    if (response.ok) {
-      const cosmosData = await response.json();
-      if (cosmosData && cosmosData.projects !== undefined) {
-        data = cosmosData;
-        if(!data.projects)  data.projects=[];
-        if(!data.suppliers) data.suppliers=[];
-        if(!data.rfqs)      data.rfqs=[];
-        if(!data.orders)    data.orders=[];
-        if(!data.boms)      data.boms=[];
-        if(!data.procplans) data.procplans=[];
-        if(!data.contracts) data.contracts=[];
-        if(!data.reminders) data.reminders=[];
-        if(!data.activity)  data.activity=[];
-        nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        console.log("✅ Data loaded from Azure Cosmos DB");
-        toast("☁️ Data synced from Azure Cosmos DB!", "#22d3a5");
-      }
-    } else if (response.status === 404) {
-      console.log("🆕 No Cosmos DB doc found. Initializing...");
-      await saveToCosmosDB();
-      toast("☁️ Azure Cosmos DB initialized!", "#6764f6");
-    } else {
-      console.warn("⚠ Cosmos DB load failed:", await response.text());
-    }
-  } catch(e) {
-    console.warn("⚠ Cosmos DB load error:", e);
-    toast("⚠ Using local data (Cosmos DB unreachable)", "#f5a623");
-  }
-  renderDashboard();
-  fillDropdowns();
-}
-
-// ── Updated saveData (localStorage + Cosmos DB) ──
-function saveData() {
-  data.nextId = nextId;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); // instant local
-  saveToCosmosDB(); // background cloud sync
-}
-
-// ── Startup ──
-loadFromCosmosDB();
 
