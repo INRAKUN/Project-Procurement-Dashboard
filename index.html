@@ -854,6 +854,56 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 .gz-btn{padding:6px 14px;border:none;background:transparent;color:#a5b4fc;cursor:pointer;font-size:.8rem;font-weight:600;}
 .gz-active{background:#6764f6!important;color:#fff!important;}
 
+/* PO Hover Tooltip */
+.po-tip-wrap { position: relative; display: inline-block; }
+.po-tip-wrap .po-tooltip {
+  display: none;
+  position: fixed;
+  z-index: 9999;
+  background: #1e1e4a;
+  border: 1px solid rgba(103,100,246,.5);
+  color: #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-size: .8rem;
+  pointer-events: none;
+  min-width: 260px;
+  max-width: 340px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5);
+  line-height: 1.9;
+}
+.po-tip-wrap:hover .po-tooltip { display: block; }
+.po-id-link {
+  color: var(--abb-lilac);
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: underline dotted;
+  font-size: .85rem;
+}
+
+
+/* PO Lines Modal */
+#po-lines-body tr { border-bottom: 1px solid rgba(103,100,246,.1); transition: background .15s; }
+#po-lines-body tr:hover { background: rgba(103,100,246,.07); }
+#po-lines-body td { padding: 10px 12px; font-size: .82rem; color: #e2e8f0; }
+.po-lines-summary { background: rgba(34,211,165,.08); border: 1px solid rgba(34,211,165,.25); border-radius:10px; padding:14px 18px; margin-bottom:16px; display:flex; gap:24px; flex-wrap:wrap; }
+.po-lines-summary .sm-label { font-size:.7rem; color:#7c7fa8; margin-bottom:2px; }
+.po-lines-summary .sm-val   { font-size:.9rem; font-weight:800; color:#e2e8f0; }
+
+</style>
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 <!-- QUICK DATE EDIT MODAL -->
 <div class="modal-overlay" id="quickDateModal">
@@ -950,47 +1000,38 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 
 <script>
 
-// ══════════════════════════════════════════
-//  AZURE COSMOS DB CONFIGURATION
-// ══════════════════════════════════════════
-const COSMOS_ENDPOINT = "https://procurementexecution-cosmodb.documents.azure.com:443/";
-const COSMOS_KEY = "Ti0PWtmS38kvpBlvJhcK8BmTeWWBSjS09CXS0AtEr2hdbMkNcjUl0pWNfZiZsz0bbxM9pNyzWwJYACDbG1jsDA==";
-const COSMOS_DB = "Procurementexecution database";
-const COSMOS_CONTAINER = "Task";
-const COSMOS_DOC_ID = "crmMainData";
 
-// ✅ FIXED: Proper implementation
-async function saveToCosmosDB() {
-  try {
-    // Optional - only sync if key is available
-    if(!COSMOS_KEY) return;
-    // For now, just localStorage is sufficient
-    // Full implementation would require Azure SDK
-    console.log('Data synced locally');
-  } catch(err) {
-    console.warn('Cosmos sync skipped:', err.message);
-  }
-}
 
-async function loadFromCosmosDB() {
-  try {
-    // Load from localStorage first (faster)
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if(stored) {
-      data = JSON.parse(stored);
-      console.log('✅ Data loaded from cache');
-    }
-  } catch(err) {
-    console.warn('Load failed:', err.message);
-  }
-}
+
+
+
+
+
 
 // ══════════════════════════════════════════
 //  DATA STORE
 // ══════════════════════════════════════════
+// Your web app's Firebase configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAiLyhLU6ccibfmV1Cely6C7DEYvhdtayA",
+  authDomain: "test--project-crm.firebaseapp.com",
+  projectId: "test--project-crm",
+  storageBucket: "test--project-crm.firebasestorage.app",
+  messagingSenderId: "291937028717",
+  appId: "1:291937028717:web:888a884bb6e955b14a0d64"
+};
+// Initialize Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const DOC_REF = db.collection('crm').doc('mainData');
+
+// ══════════════════════════════════════════
+//  DATA STORE — with localStorage fallback
+// ══════════════════════════════════════════
 const STORAGE_KEY = 'abbProcCRM_v4';
 let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {
-  projects:[], suppliers:[], rfqs:[], orders:[], boms:[], procplans:[], contracts:[], reminders:[], activity:[]
+  projects:[], suppliers:[], rfqs:[], orders:[], boms:[],
+  procplans:[], contracts:[], reminders:[], activity:[]
 };
 if(!data.projects)  data.projects=[];
 if(!data.suppliers) data.suppliers=[];
@@ -1003,10 +1044,60 @@ if(!data.reminders) data.reminders=[];
 if(!data.activity)  data.activity=[];
 
 let nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
-function saveData() {
+
+// Save to BOTH localStorage and Firebase
+function saveData(){
   data.nextId = nextId;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); // instant local
-  saveToCosmosDB(); // background cloud sync
+  // 1. Save locally first (instant)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  // 2. Save to Firebase in background
+  DOC_REF.set(data)
+    .then(()=> console.log('✅ Firebase sync OK'))
+    .catch(err=> console.warn('⚠ Firebase sync failed:', err));
+}
+
+// Load from Firebase on startup
+function loadFromFirebase(){
+  const loadingToast = document.getElementById('toast');
+  DOC_REF.get().then(doc => {
+    if(doc.exists){
+      const fbData = doc.data();
+      if(fbData && fbData.projects !== undefined){
+        // Firebase has data — use it (more up to date)
+        data = fbData;
+        if(!data.projects)  data.projects=[];
+        if(!data.suppliers) data.suppliers=[];
+        if(!data.rfqs)      data.rfqs=[];
+        if(!data.orders)    data.orders=[];
+        if(!data.boms)      data.boms=[];
+        if(!data.procplans) data.procplans=[];
+        if(!data.contracts) data.contracts=[];
+        if(!data.reminders) data.reminders=[];
+        if(!data.activity)  data.activity=[];
+        nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
+        // Also update localStorage with Firebase data
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        console.log('✅ Data loaded from Firebase');
+        toast('☁️ Data synced from Firebase!', '#22d3a5');
+      } else {
+        // Firebase empty — migrate localStorage data to Firebase
+        console.log('📦 Migrating localStorage to Firebase...');
+        saveData();
+        toast('☁️ Data migrated to Firebase!', '#6764f6');
+      }
+    } else {
+      // No Firebase doc yet — create from localStorage
+      console.log('🆕 Creating Firebase document...');
+      saveData();
+      toast('☁️ Firebase initialized!', '#6764f6');
+    }
+    // Re-render dashboard after load
+    renderDashboard();
+    fillDropdowns();
+  }).catch(err => {
+    console.warn('⚠ Firebase load failed, using localStorage:', err);
+    toast('⚠ Using offline mode', '#f5a623');
+  });
 }
 
 // ══════════════════════════════════════════
@@ -1063,48 +1154,20 @@ const PAGE_TITLES = {
   reminders:'🔔 Reminders', activity:'🕒 Activity Log', settings:'⚙ Settings'
 };
 function showPage(id, el){
-  try {
-    // Hide all pages
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    
-    // Show selected page
-    const pg = document.getElementById('page-'+id);
-    if(!pg) {
-      console.error('Page not found:', 'page-'+id);
-      return;
-    }
-    pg.classList.add('active');
-    
-    // Mark nav item active
-    if(el) el.classList.add('active');
-    
-    // Update title
-    document.getElementById('page-title').textContent = PAGE_TITLES[id]||'';
-    
-    // Re-render page data
-    const renders = {
-      dashboard: renderDashboard,
-      projects: renderProjects,
-      suppliers: renderSuppliers,
-      rfq: renderRFQ,
-      orders: renderOrders,
-      bom: renderBOM,
-      procplan: renderProcPlan,
-      contracts: renderContracts,
-      reminders: renderReminders,
-      activity: renderActivity,
-      settings: renderSettings
-    };
-    
-    if(renders[id]) {
-      renders[id]();
-      console.log('✅ Page rendered:', id);
-    }
-  } catch(err) {
-    console.error('Page switch error:', err);
-    toast('⚠ Error loading page: '+err.message, '#FF000F');
-  }
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pg=document.getElementById('page-'+id);
+  if(pg) pg.classList.add('active');
+  if(el) el.classList.add('active');
+  document.getElementById('page-title').textContent = PAGE_TITLES[id]||'';
+  // Re-render on switch
+  const renders={
+    dashboard:renderDashboard, projects:renderProjects, suppliers:renderSuppliers,
+    rfq:renderRFQ, orders:renderOrders, bom:renderBOM,
+    procplan:renderProcPlan, contracts:renderContracts,
+    reminders:renderReminders, activity:renderActivity, settings:renderSettings
+  };
+  if(renders[id]) renders[id]();
 }
 
 // ══════════════════════════════════════════
@@ -1138,114 +1201,39 @@ function statusBadge(st){
 function projBadge(id){ const p=getProjById(id); if(!p) return '<span class="badge badge-gray">—</span>';
   return `<span class="badge badge-purple" title="${p.name}"><span class="color-dot" style="background:${p.color||'#6764f6'}"></span>${p.code}</span>`; }
 
-// Fill all dropdowns - SAFE VERSION
+// Fill all dropdowns
 function fillDropdowns(){
-  try {
-    const pOpts='<option value="">-- No Project --</option>'+
-      (data.projects||[]).map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join('');
-    const sOpts='<option value="">-- Select Supplier --</option>'+
-      (data.suppliers||[]).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-    const sAny='<option value="">-- Any --</option>'+
-      (data.suppliers||[]).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
-    
-    // Safely update each select
-    const updates = [
-      {ids:['o-project','r-project','pp-project'], opts:pOpts},
-      {ids:['bom-project'], opts:'<option value="">-- Select Project --</option>'+pOpts},
-      {ids:['o-supplier','r-supplier','c-supplier'], opts:sOpts},
-      {ids:['bi-supplier'], opts:sAny},
-      // Filter selects
-      {ids:['po-proj-filter','rfq-proj-filter','pp-proj-filter','bom-proj-filter'], 
-       opts:'<option value="">All Projects</option>'+pOpts},
-      {ids:['po-sup-filter'], opts:'<option value="">All Suppliers</option>'+sOpts},
-      {ids:['bom-item-sup-filter'], opts:'<option value="">All Suppliers</option>'+sOpts},
-      // Gantt filters
-      {ids:['plan-gantt-proj','po-gantt-proj'], 
-       opts:'<option value="">All Projects</option>'+pOpts},
-      {ids:['po-gantt-sup'], opts:'<option value="">All Suppliers</option>'+sOpts}
-    ];
-    
-    updates.forEach(({ids, opts})=>{
-      ids.forEach(id=>{
-        const el = document.getElementById(id);
-        if(el) {
-          const v = el.value; // Preserve current value
-          el.innerHTML = opts;
-          el.value = v;
-        }
-      });
-    });
-    
-    console.log('✅ Dropdowns filled');
-} catch(err) {
-    console.error('fillDropdowns error:', err);
-  }
-}
+  const pOpts='<option value="">-- No Project --</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join('');
+  const sOpts='<option value="">-- Select Supplier --</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  const sAny='<option value="">-- Any --</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  ['o-project','r-project','pp-project'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=pOpts;el.value=v;}});
+  ['bom-project'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML='<option value="">-- Select Project --</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join('');el.value=v;}});
+  ['o-supplier','r-supplier','c-supplier'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=sOpts;el.value=v;}});
+  ['bi-supplier'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=sAny;el.value=v;}});
+  // Filter selects
+  ['po-proj-filter','rfq-proj-filter','pp-proj-filter','bom-proj-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;
+  });
+  ['po-sup-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;
+  });
+  ['bom-item-sup-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;
+  });
+  // Gantt filters
+  ['plan-gantt-proj'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;});
+  ['po-gantt-sup'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;});
+  ['po-gantt-proj'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;});
 }
 
 // ══════════════════════════════════════════
-//  TOPBAR DATE (Safe Check)
+//  TOPBAR DATE
 // ══════════════════════════════════════════
-document.addEventListener('DOMContentLoaded', function() {
-  const dateEl = document.getElementById('topbar-date');
-  if(dateEl) {
-    dateEl.textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
-  }
-});
+document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
 
-// ══════════════════════════════════════════
-//  STARTUP (FIXED)
-// ══════════════════════════════════════════
-(async function initApp() {
-  try {
-    // 1. Load data
-    await loadFromCosmosDB();
-    
-    // 2. Ensure all data arrays exist
-    if(!data.projects) data.projects=[];
-    if(!data.suppliers) data.suppliers=[];
-    if(!data.orders) data.orders=[];
-    if(!data.boms) data.boms=[];
-    if(!data.rfqs) data.rfqs=[];
-    if(!data.procplans) data.procplans=[];
-    if(!data.contracts) data.contracts=[];
-    if(!data.reminders) data.reminders=[];
-    if(!data.activity) data.activity=[];
-    
-    // 3. Initialize email config
-    emailCfg = JSON.parse(localStorage.getItem('abbProcEmail')||'{}');
-    if(emailCfg.pubkey && typeof emailjs !== 'undefined') {
-      emailjs.init(emailCfg.pubkey);
-    }
-    
-    // 4. Fill dropdowns
-    fillDropdowns();
-    
-    // 5. Render dashboard
-    renderDashboard();
-    
-    // 6. Update date
-    const dateEl = document.getElementById('topbar-date');
-    if(dateEl) {
-      dateEl.textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
-    }
-    
-    // 7. Start breach check interval
-    setInterval(()=>{
-      const b = getBreaches();
-      const alertEl = document.getElementById('breach-alert-top');
-      if(alertEl) {
-        alertEl.style.display = b.length?'':'none';
-        alertEl.textContent = b.length?`🚨 ${b.length} breach(es)`:'';
-      }
-    }, 300000);
-    
-    console.log('✅ APP INITIALIZED SUCCESSFULLY');
-  } catch(err) {
-    console.error('❌ APP INIT FAILED:', err);
-    toast('⚠ Error initializing app', '#FF000F');
-  }
-})();
 
 
 // ══ DASHBOARD ══
@@ -2154,6 +2142,8 @@ function exportBOMDetail(){const b=getBOM(activeBOMId);if(!b)return;const p=getP
 if(emailCfg.pubkey&&typeof emailjs!=='undefined')emailjs.init(emailCfg.pubkey);
 fillDropdowns();
 renderDashboard();
+// Load data from Firebase
+loadFromFirebase();
 setInterval(()=>{const b=getBreaches();document.getElementById('breach-alert-top').style.display=b.length?'':'none';document.getElementById('breach-alert-top').textContent=b.length?`🚨 ${b.length} breach(es)`:'';},300000);
 
 // Position PO tooltip near mouse cursor
@@ -2403,6 +2393,3 @@ function showIFATBreachDetail(planId){
 </script>
 </body>
 </html>
-
-
-
