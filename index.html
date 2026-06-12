@@ -1009,24 +1009,7 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 
 
 // ══════════════════════════════════════════
-//  DATA STORE
-// ══════════════════════════════════════════
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAiLyhLU6ccibfmV1Cely6C7DEYvhdtayA",
-  authDomain: "test--project-crm.firebaseapp.com",
-  projectId: "test--project-crm",
-  storageBucket: "test--project-crm.firebasestorage.app",
-  messagingSenderId: "291937028717",
-  appId: "1:291937028717:web:888a884bb6e955b14a0d64"
-};
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
-const DOC_REF = db.collection('crm').doc('mainData');
 
-// ══════════════════════════════════════════
-//  DATA STORE — with localStorage fallback
 // ══════════════════════════════════════════
 const STORAGE_KEY = 'abbProcCRM_v4';
 let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {
@@ -1044,61 +1027,6 @@ if(!data.reminders) data.reminders=[];
 if(!data.activity)  data.activity=[];
 
 let nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
-
-// Save to BOTH localStorage and Firebase
-function saveData(){
-  data.nextId = nextId;
-  // 1. Save locally first (instant)
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  // 2. Save to Firebase in background
-  DOC_REF.set(data)
-    .then(()=> console.log('✅ Firebase sync OK'))
-    .catch(err=> console.warn('⚠ Firebase sync failed:', err));
-}
-
-// Load from Firebase on startup
-function loadFromFirebase(){
-  const loadingToast = document.getElementById('toast');
-  DOC_REF.get().then(doc => {
-    if(doc.exists){
-      const fbData = doc.data();
-      if(fbData && fbData.projects !== undefined){
-        // Firebase has data — use it (more up to date)
-        data = fbData;
-        if(!data.projects)  data.projects=[];
-        if(!data.suppliers) data.suppliers=[];
-        if(!data.rfqs)      data.rfqs=[];
-        if(!data.orders)    data.orders=[];
-        if(!data.boms)      data.boms=[];
-        if(!data.procplans) data.procplans=[];
-        if(!data.contracts) data.contracts=[];
-        if(!data.reminders) data.reminders=[];
-        if(!data.activity)  data.activity=[];
-        nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
-        // Also update localStorage with Firebase data
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-        console.log('✅ Data loaded from Firebase');
-        toast('☁️ Data synced from Firebase!', '#22d3a5');
-      } else {
-        // Firebase empty — migrate localStorage data to Firebase
-        console.log('📦 Migrating localStorage to Firebase...');
-        saveData();
-        toast('☁️ Data migrated to Firebase!', '#6764f6');
-      }
-    } else {
-      // No Firebase doc yet — create from localStorage
-      console.log('🆕 Creating Firebase document...');
-      saveData();
-      toast('☁️ Firebase initialized!', '#6764f6');
-    }
-    // Re-render dashboard after load
-    renderDashboard();
-    fillDropdowns();
-  }).catch(err => {
-    console.warn('⚠ Firebase load failed, using localStorage:', err);
-    toast('⚠ Using offline mode', '#f5a623');
-  });
-}
 
 // ══════════════════════════════════════════
 //  MODAL SYSTEM (all use .open class ONLY)
