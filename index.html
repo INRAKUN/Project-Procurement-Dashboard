@@ -2070,9 +2070,6 @@ function exportBOMDetail(){const b=getBOM(activeBOMId);if(!b)return;const p=getP
 if(emailCfg.pubkey&&typeof emailjs!=='undefined')emailjs.init(emailCfg.pubkey);
 fillDropdowns();
 renderDashboard();
-// Load data from Firebase
-loadFromFirebase();
-setInterval(()=>{const b=getBreaches();document.getElementById('breach-alert-top').style.display=b.length?'':'none';document.getElementById('breach-alert-top').textContent=b.length?`🚨 ${b.length} breach(es)`:'';},300000);
 
 // Position PO tooltip near mouse cursor
 document.addEventListener('mousemove', function(e){
