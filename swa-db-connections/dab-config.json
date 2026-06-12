@@ -6,6 +6,18 @@
       "database": "Procurementexecution database"
     }
   },
+  "runtime": {
+    "rest": {
+      "enabled": true
+    },
+    "host": {
+      "mode": "production",
+      "cors": {
+        "origins": ["*"],
+        "allow-credentials": false
+      }
+    }
+  },
   "entities": {
     "Item": {
       "source": "Task",
