@@ -1,4 +1,4 @@
 type Item @model {
   id: ID!
-  payload: String   # stores your entire data object as JSON string
+  payload: String
 }
