@@ -1011,23 +1011,233 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 // ══════════════════════════════════════════
 
 // ══════════════════════════════════════════
-const STORAGE_KEY = 'abbProcCRM_v4';
-let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') || {
+// ══════════════════════════════════════════
+//  CONFIGURATION
+// ══════════════════════════════════════════
+const STORAGE_KEY  = 'abbProcCRM_v4';
+const DAB_BASE_URL = 'https://polite-stone-0280a1010.7.azurestaticapps.net';  // ← replace with your Azure DAB URL
+const DOC_ID       = 'abbProcCRM_main';               // single Cosmos DB document ID
+
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let data = {
   projects:[], suppliers:[], rfqs:[], orders:[], boms:[],
   procplans:[], contracts:[], reminders:[], activity:[]
 };
-if(!data.projects)  data.projects=[];
-if(!data.suppliers) data.suppliers=[];
-if(!data.rfqs)      data.rfqs=[];
-if(!data.orders)    data.orders=[];
-if(!data.boms)      data.boms=[];
-if(!data.procplans) data.procplans=[];
-if(!data.contracts) data.contracts=[];
-if(!data.reminders) data.reminders=[];
-if(!data.activity)  data.activity=[];
+let nextId = { p:1, s:1, r:1, o:1, b:1, bi:1, pp:1, c:1, rm:1 };
+let _isSaving  = false;   // prevent concurrent saves
+let _saveQueue = false;   // queue a pending save if one is in progress
+let _isOnline  = true;    // tracks Cosmos DB reachability
 
-let nextId = data.nextId || {p:1,s:1,r:1,o:1,b:1,bi:1,pp:1,c:1,rm:1};
+// ══════════════════════════════════════════
+//  LOADING INDICATOR
+// ══════════════════════════════════════════
+function showLoader(msg = 'Loading...') {
+  let el = document.getElementById('cosmos-loader');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'cosmos-loader';
+    el.style.cssText = `
+      position:fixed; bottom:28px; left:28px; z-index:9999;
+      background:#22223b; color:#a5b4fc;
+      padding:10px 18px; border-radius:10px;
+      font-size:.82rem; font-weight:600;
+      border:1px solid rgba(103,100,246,.4);
+      box-shadow:0 4px 20px rgba(0,0,0,.3);
+      display:flex; align-items:center; gap:8px;
+    `;
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<span style="animation:spin .8s linear infinite;display:inline-block">⏳</span> ${msg}`;
+  el.style.display = 'flex';
+}
+function hideLoader() {
+  const el = document.getElementById('cosmos-loader');
+  if (el) el.style.display = 'none';
+}
 
+// ══════════════════════════════════════════
+//  CONNECTIVITY BADGE
+// ══════════════════════════════════════════
+function setOnlineBadge(online) {
+  _isOnline = online;
+  let el = document.getElementById('cosmos-badge');
+  if (!el) {
+    el = document.createElement('span');
+    el.id = 'cosmos-badge';
+    el.style.cssText = `
+      font-size:.72rem; font-weight:700;
+      padding:3px 10px; border-radius:20px;
+      cursor:pointer; margin-right:8px;
+    `;
+    el.title = 'Click to retry Cosmos DB connection';
+    el.onclick = () => loadFromCosmos();
+    const topbarRight = document.querySelector('.topbar-right');
+    if (topbarRight) topbarRight.prepend(el);
+  }
+  el.textContent  = online ? '🟢 Cosmos DB' : '🔴 Offline (localStorage)';
+  el.style.background = online ? '#d1fae522' : '#fee2e222';
+  el.style.color      = online ? '#065f46'   : '#991b1b';
+  el.style.border     = online ? '1px solid #6ee7b7' : '1px solid #fca5a5';
+}
+
+// ══════════════════════════════════════════
+//  LOAD DATA FROM COSMOS DB
+// ══════════════════════════════════════════
+async function loadFromCosmos() {
+  showLoader('Connecting to Cosmos DB...');
+  try {
+    const res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
+      method : 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    // ── 404 means first run — no document yet ──
+    if (res.status === 404) {
+      console.info('No Cosmos DB document found. Starting fresh.');
+      setOnlineBadge(true);
+      hideLoader();
+      _loadFromLocalStorage();   // fallback to any cached data
+      renderDashboard();
+      return;
+    }
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json    = await res.json();
+    const payload = json?.value?.[0]?.payload || json?.payload;
+
+    if (payload) {
+      data   = { ...data,   ...payload };
+      nextId = { ...nextId, ...(payload.nextId || {}) };
+      // Sync localStorage as backup
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
+      toast('✅ Data loaded from Cosmos DB', '#22d3a5');
+    } else {
+      _loadFromLocalStorage();
+    }
+
+    setOnlineBadge(true);
+
+  } catch (err) {
+    console.warn('Cosmos DB load failed:', err.message);
+    setOnlineBadge(false);
+    _loadFromLocalStorage();
+    toast('⚠ Cosmos DB unavailable — using local cache', '#f5a623');
+  } finally {
+    hideLoader();
+    _ensureArrays();
+    fillDropdowns();
+    renderDashboard();
+  }
+}
+
+// ── fallback: load from localStorage ──
+function _loadFromLocalStorage() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (cached) {
+      data   = { ...data,   ...cached };
+      nextId = { ...nextId, ...(cached.nextId || {}) };
+      console.info('Loaded from localStorage cache.');
+    }
+  } catch (e) {
+    console.warn('localStorage parse error:', e);
+  }
+}
+
+// ── make sure all arrays exist ──
+function _ensureArrays() {
+  ['projects','suppliers','rfqs','orders','boms',
+   'procplans','contracts','reminders','activity'].forEach(k => {
+    if (!Array.isArray(data[k])) data[k] = [];
+  });
+}
+
+// ══════════════════════════════════════════
+//  SAVE DATA TO COSMOS DB
+// ══════════════════════════════════════════
+async function saveData() {
+  // Always save to localStorage immediately (instant backup)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
+
+  // If a save is already running, queue another one
+  if (_isSaving) { _saveQueue = true; return; }
+  _isSaving = true;
+
+  const payload = { id: DOC_ID, payload: { ...data, nextId } };
+
+  try {
+    // ── Try UPDATE (PUT) first ──
+    let res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
+      method : 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(payload)
+    });
+
+    // ── If document doesn't exist yet, CREATE it (POST) ──
+    if (res.status === 404) {
+      res = await fetch(`${DAB_BASE_URL}/Item`, {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify(payload)
+      });
+    }
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    setOnlineBadge(true);
+
+  } catch (err) {
+    console.warn('Cosmos DB save failed:', err.message);
+    setOnlineBadge(false);
+    // Data is safe in localStorage — no data loss
+  } finally {
+    _isSaving = false;
+    // If another save was queued while we were saving, run it now
+    if (_saveQueue) {
+      _saveQueue = false;
+      saveData();
+    }
+  }
+}
+
+// ══════════════════════════════════════════
+//  INDIVIDUAL ENTITY HELPERS (optional - 
+//  for future per-container architecture)
+// ══════════════════════════════════════════
+
+// Save a single entity type (e.g. just orders)
+async function saveEntity(entityName, records) {
+  try {
+    await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}-${entityName}`, {
+      method : 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify({ id: `${DOC_ID}-${entityName}`, payload: records })
+    });
+  } catch (err) {
+    console.warn(`Failed to save entity "${entityName}":`, err.message);
+  }
+}
+
+// ══════════════════════════════════════════
+//  INIT — start the app
+// ══════════════════════════════════════════
+
+// Add spinner CSS
+const _style = document.createElement('style');
+_style.textContent = `@keyframes spin { to { transform:rotate(360deg); } }`;
+document.head.appendChild(_style);
+
+// Initialize EmailJS if configured
+const emailCfg = JSON.parse(localStorage.getItem('abbProcEmail') || '{}');
+if (emailCfg.pubkey && typeof emailjs !== 'undefined') {
+  emailjs.init(emailCfg.pubkey);
+}
+
+// Load data (async - renders dashboard when done)
+loadFromCosmos();
 // ══════════════════════════════════════════
 //  MODAL SYSTEM (all use .open class ONLY)
 // ══════════════════════════════════════════
