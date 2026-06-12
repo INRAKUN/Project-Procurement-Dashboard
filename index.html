@@ -1106,7 +1106,8 @@ async function loadFromCosmos() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const json    = await res.json();
-    const payload = json?.value?.[0]?.payload || json?.payload;
+   let payload = json?.value?.[0]?.payload || json?.payload;
+if (typeof payload === 'string') payload = JSON.parse(payload);
 
     if (payload) {
       data   = { ...data,   ...payload };
@@ -1166,7 +1167,7 @@ async function saveData() {
   if (_isSaving) { _saveQueue = true; return; }
   _isSaving = true;
 
-  const payload = { id: DOC_ID, payload: { ...data, nextId } };
+ const payload = { id: DOC_ID, payload: JSON.stringify({ ...data, nextId }) };
 
   try {
     // ── Try UPDATE (PUT) first ──
@@ -1988,8 +1989,7 @@ function ganttScrollToday(scrollId){
   sc.scrollLeft=Math.max(0,tx-sc.clientWidth/2);
 }
 
-// ══ SETTINGS / EMAIL ══
-let emailCfg=JSON.parse(localStorage.getItem('abbProcEmail')||'{}');
+
 function renderSettings(){
   document.getElementById('cfg-email').value=emailCfg.email||'';
   document.getElementById('cfg-cc').value=emailCfg.cc||'';
@@ -2276,10 +2276,6 @@ function exportExcel(type){const wb=XLSX.utils.book_new();let d2=[],hdr=[];
 function exportBOM(){const wb=XLSX.utils.book_new();data.boms.forEach(b=>{const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),(b.bomNo||'BOM').slice(0,30));});XLSX.writeFile(wb,'BOM_Export_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 BOM exported!','#22d3a5');}
 function exportBOMDetail(){const b=getBOM(activeBOMId);if(!b)return;const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'BOM Detail');XLSX.writeFile(wb,'BOM_'+b.bomNo+'_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 Exported!','#22d3a5');}
 
-// ══ INIT ══
-if(emailCfg.pubkey&&typeof emailjs!=='undefined')emailjs.init(emailCfg.pubkey);
-fillDropdowns();
-renderDashboard();
 
 // Position PO tooltip near mouse cursor
 document.addEventListener('mousemove', function(e){
