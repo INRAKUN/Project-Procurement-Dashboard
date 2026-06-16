@@ -426,6 +426,26 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
   <div class="section-header"><h3>⚙ Settings & Email Alerts</h3></div>
   <div class="dash-row">
     <div class="card">
+      <div class="card" style="margin-bottom:18px">
+  <div class="card-title">☁ Azure Cosmos DB (DAB) Configuration</div>
+  <div class="alert alert-info" style="font-size:.8rem">
+    Enter your <b>Azure Static Web Apps API Key</b> or <b>Bearer Token</b>. 
+    Find it in Azure Portal → Static Web Apps → API Keys. Leave blank if DAB is set to anonymous access.
+  </div>
+  <div class="form-group" style="margin-bottom:12px">
+    <label>DAB API Key / Bearer Token</label>
+    <input id="cfg-dab-key" type="password" placeholder="paste your API key or Bearer token here">
+  </div>
+  <div class="form-group" style="margin-bottom:16px">
+    <label>DAB Base URL</label>
+    <input id="cfg-dab-url" placeholder="https://your-app.azurestaticapps.net">
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-primary" onclick="saveDabConfig()">💾 Save DAB Config</button>
+    <button class="btn btn-outline" onclick="testDabConnection()">🔌 Test Connection</button>
+  </div>
+  <div id="dab-test-result" style="margin-top:10px;font-size:.8rem"></div>
+</div>
       <div class="card-title">📧 Email Configuration</div>
       <div class="alert alert-info">Uses <b>EmailJS</b> (free) to send real emails, or falls back to Outlook mailto.</div>
       <div class="form-group" style="margin-bottom:12px"><label>Your Email *</label><input id="cfg-email" type="email" placeholder="you@in.abb.com"></div>
@@ -893,18 +913,6 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 </style>
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 <!-- QUICK DATE EDIT MODAL -->
 <div class="modal-overlay" id="quickDateModal">
   <div class="modal" style="max-width:480px">
@@ -1026,9 +1034,10 @@ let data = {
   procplans:[], contracts:[], reminders:[], activity:[]
 };
 let nextId = { p:1, s:1, r:1, o:1, b:1, bi:1, pp:1, c:1, rm:1 };
-let _isSaving  = false;   // prevent concurrent saves
-let _saveQueue = false;   // queue a pending save if one is in progress
-let _isOnline  = true;    // tracks Cosmos DB reachability
+let _isSaving    = false;
+let _saveQueue   = 0;       // count of pending saves (not just true/false)
+let _isOnline    = true;
+let _savingTimer = null;    // watchdog timer to prevent _isSaving stuck forever
 
 // ══════════════════════════════════════════
 //  LOADING INDICATOR
@@ -1085,34 +1094,86 @@ function setOnlineBadge(online) {
 // ══════════════════════════════════════════
 //  LOAD DATA FROM COSMOS DB
 // ══════════════════════════════════════════
+// ══════════════════════════════════════════
+//  DAB CONFIG HELPERS
+// ══════════════════════════════════════════
+function getDabConfig() {
+  return JSON.parse(localStorage.getItem('abbProcDAB') || '{}');
+}
+function buildDabHeaders() {
+  const cfg = getDabConfig();
+  const headers = { 'Content-Type': 'application/json' };
+  if (cfg.apiKey && cfg.apiKey.trim()) {
+    // Azure Static Web Apps use this header for API key auth
+    headers['X-API-KEY']     = cfg.apiKey.trim();
+    // Also try Bearer in case it's an Entra/AAD token
+    headers['Authorization'] = 'Bearer ' + cfg.apiKey.trim();
+  }
+  return headers;
+}
+function getDabBaseUrl() {
+  const cfg = getDabConfig();
+  return (cfg.baseUrl && cfg.baseUrl.trim())
+    ? cfg.baseUrl.trim().replace(/\/$/, '')
+    : DAB_BASE_URL;
+}
+
+// Save / fetch with timeout helper
+function fetchWithTimeout(url, options = {}, ms = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
+// ══════════════════════════════════════════
+//  LOAD DATA FROM COSMOS DB
+// ══════════════════════════════════════════
 async function loadFromCosmos() {
   showLoader('Connecting to Cosmos DB...');
   try {
-    const res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
-      method : 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const res = await fetchWithTimeout(
+      `${getDabBaseUrl()}/Item/id/${DOC_ID}`,
+      { method: 'GET', headers: buildDabHeaders() },
+      12000
+    );
 
-    // ── 404 means first run — no document yet ──
+    // 404 = first run, no document yet
     if (res.status === 404) {
       console.info('No Cosmos DB document found. Starting fresh.');
       setOnlineBadge(true);
       hideLoader();
-      _loadFromLocalStorage();   // fallback to any cached data
+      _loadFromLocalStorage();
+      _ensureArrays();
+      fillDropdowns();
       renderDashboard();
       return;
     }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`Auth failed (${res.status}) — check your DAB API Key in Settings`);
+    }
 
-    const json    = await res.json();
-   let payload = json?.value?.[0]?.payload || json?.payload;
-if (typeof payload === 'string') payload = JSON.parse(payload);
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+
+    const json = await res.json();
+    let payload = json?.value?.[0]?.payload || json?.payload;
+
+    // ── Safe JSON parse (Bug #6 fix) ──
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+      } catch (parseErr) {
+        console.warn('Payload JSON parse failed:', parseErr);
+        payload = null;
+      }
+    }
 
     if (payload) {
-      data   = { ...data,   ...payload };
-      nextId = { ...nextId, ...(payload.nextId || {}) };
-      // Sync localStorage as backup
+      // ── Clean destructure (Bug #2 fix) ──
+      const { nextId: loadedNextId, id: _, ...entities } = payload;
+      data   = { ...data,   ...entities };
+      nextId = { ...nextId, ...(loadedNextId || {}) };
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
       toast('✅ Data loaded from Cosmos DB', '#22d3a5');
     } else {
@@ -1125,7 +1186,14 @@ if (typeof payload === 'string') payload = JSON.parse(payload);
     console.warn('Cosmos DB load failed:', err.message);
     setOnlineBadge(false);
     _loadFromLocalStorage();
-    toast('⚠ Cosmos DB unavailable — using local cache', '#f5a623');
+    // Show specific message for auth vs network
+    if (err.message.includes('Auth failed')) {
+      toast('🔐 Auth failed — add DAB API Key in Settings', '#FF000F');
+    } else if (err.name === 'AbortError') {
+      toast('⏱ Cosmos DB timeout — using local cache', '#f5a623');
+    } else {
+      toast('⚠ Cosmos DB unavailable — using local cache', '#f5a623');
+    }
   } finally {
     hideLoader();
     _ensureArrays();
@@ -1160,50 +1228,151 @@ function _ensureArrays() {
 //  SAVE DATA TO COSMOS DB
 // ══════════════════════════════════════════
 async function saveData() {
-  // Always save to localStorage immediately (instant backup)
+  // ── 1. Always write to localStorage instantly (zero-loss backup) ──
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
 
-  // If a save is already running, queue another one
-  if (_isSaving) { _saveQueue = true; return; }
-  _isSaving = true;
+  // ── 2. If already saving, increment queue counter and exit ──
+  if (_isSaving) {
+    _saveQueue++;
+    updateSaveBadge('queued');
+    return;
+  }
 
- const payload = { id: DOC_ID, payload: JSON.stringify({ ...data, nextId }) };
+  _isSaving = true;
+  updateSaveBadge('saving');
+
+  // ── 3. Watchdog: force-reset _isSaving after 20s no matter what ──
+  //    Prevents permanent stuck state if finally block itself errors
+  if (_savingTimer) clearTimeout(_savingTimer);
+  _savingTimer = setTimeout(() => {
+    if (_isSaving) {
+      console.warn('⚠ saveData() watchdog fired — resetting _isSaving');
+      _isSaving  = false;
+      _saveQueue = 0;
+      updateSaveBadge('offline');
+      toast('⚠ Save watchdog triggered — check connection', '#f5a623');
+    }
+  }, 20000);
+
+  const payload = {
+    id: DOC_ID,
+    payload: JSON.stringify({ ...data, nextId })
+  };
 
   try {
-    // ── Try UPDATE (PUT) first ──
-    let res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
-      method : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify(payload)
-    });
+    const baseUrl = getDabBaseUrl();
+    const headers = buildDabHeaders();
 
-    // ── If document doesn't exist yet, CREATE it (POST) ──
+    // ── 4. Try UPDATE (PUT) first ──
+    let res = await fetchWithTimeout(
+      `${baseUrl}/Item/id/${DOC_ID}`,
+      { method: 'PUT', headers, body: JSON.stringify(payload) },
+      12000
+    );
+
+    // ── 5. If document doesn't exist yet, CREATE (POST) ──
     if (res.status === 404) {
-      res = await fetch(`${DAB_BASE_URL}/Item`, {
-        method : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify(payload)
-      });
+      res = await fetchWithTimeout(
+        `${baseUrl}/Item`,
+        { method: 'POST', headers, body: JSON.stringify(payload) },
+        12000
+      );
     }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`Auth failed (${res.status})`);
+    }
 
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+
+    // ── 6. Success ──
+    setOnlineBadge(true);
+    updateSaveBadge('saved');
+
+  } catch (err) {
+    console.warn('Cosmos DB save failed:', err.message);
+    setOnlineBadge(false);
+    updateSaveBadge('offline');
+
+    if (err.message.includes('Auth failed')) {
+      toast('🔐 Save blocked — add DAB API Key in ⚙ Settings', '#FF000F');
+    } else if (err.name === 'AbortError') {
+      toast('⏱ Save timed out — data kept in localStorage', '#f5a623');
+    }
+    // Data is always safe in localStorage — no data loss
+
+  } finally {
+    // ── 7. Always clear watchdog and reset flag ──
+    if (_savingTimer) { clearTimeout(_savingTimer); _savingTimer = null; }
+    _isSaving = false;
+
+    // ── 8. If saves were queued, flush ONE consolidated save ──
+    //    (All queued edits are already in localStorage & data{}, 
+    //     so one save captures everything)
+    if (_saveQueue > 0) {
+      const queued = _saveQueue;
+      _saveQueue = 0;
+      console.info(`Flushing ${queued} queued save(s) as one batch`);
+      saveData();   // recursive — will pick up all accumulated changes
+    } else {
+      updateSaveBadge('idle');
+    }
+  }
+}
     setOnlineBadge(true);
 
   } catch (err) {
     console.warn('Cosmos DB save failed:', err.message);
     setOnlineBadge(false);
+    if (err.message.includes('Auth failed')) {
+      toast('🔐 Cosmos save blocked — check DAB API Key in ⚙ Settings', '#FF000F');
+    } else if (err.name === 'AbortError') {
+      toast('⏱ Save timeout — data kept locally', '#f5a623');
+    }
     // Data is safe in localStorage — no data loss
   } finally {
     _isSaving = false;
-    // If another save was queued while we were saving, run it now
     if (_saveQueue) {
       _saveQueue = false;
       saveData();
     }
   }
 }
+// ── Save status badge (shows next to Cosmos badge) ──
+function updateSaveBadge(state) {
+  let el = document.getElementById('save-status-badge');
+  if (!el) {
+    el = document.createElement('span');
+    el.id = 'save-status-badge';
+    el.style.cssText = `
+      font-size:.72rem; font-weight:700;
+      padding:3px 10px; border-radius:20px;
+      margin-right:6px; transition: all .3s;
+    `;
+    const topbarRight = document.querySelector('.topbar-right');
+    if (topbarRight) topbarRight.prepend(el);
+  }
 
+  const states = {
+    saving:  { text: '⏳ Saving...',   bg: '#dbeafe', color: '#1e40af', border: '#bfdbfe' },
+    queued:  { text: '🔄 Queued',      bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
+    saved:   { text: '✅ Saved',        bg: '#d1fae522', color: '#065f46', border: '#6ee7b7' },
+    offline: { text: '💾 Local only',  bg: '#fee2e222', color: '#991b1b', border: '#fca5a5' },
+    idle:    { text: '',               bg: 'transparent', color: 'transparent', border: 'transparent' }
+  };
+
+  const s = states[state] || states.idle;
+  el.textContent        = s.text;
+  el.style.background   = s.bg;
+  el.style.color        = s.color;
+  el.style.border       = `1px solid ${s.border}`;
+  el.style.display      = state === 'idle' ? 'none' : 'inline-block';
+
+  // Auto-hide "Saved" badge after 3 seconds
+  if (state === 'saved') {
+    setTimeout(() => updateSaveBadge('idle'), 3000);
+  }
+}
 // ══════════════════════════════════════════
 //  INDIVIDUAL ENTITY HELPERS (optional - 
 //  for future per-container architecture)
@@ -1991,6 +2160,13 @@ function ganttScrollToday(scrollId){
 
 
 function renderSettings(){
+    // ── NEW: populate DAB fields ──
+  const dabCfg = getDabConfig();
+  if (document.getElementById('cfg-dab-key'))
+    document.getElementById('cfg-dab-key').value = dabCfg.apiKey || '';
+  if (document.getElementById('cfg-dab-url'))
+    document.getElementById('cfg-dab-url').value = dabCfg.baseUrl || DAB_BASE_URL;
+  // remaining code
   document.getElementById('cfg-email').value=emailCfg.email||'';
   document.getElementById('cfg-cc').value=emailCfg.cc||'';
   document.getElementById('cfg-pubkey').value=emailCfg.pubkey||'';
@@ -2275,7 +2451,42 @@ function exportExcel(type){const wb=XLSX.utils.book_new();let d2=[],hdr=[];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([hdr,...d2]),type);XLSX.writeFile(wb,`${type}_export_${new Date().toISOString().slice(0,10)}.xlsx`);toast('📥 Exported!','#22d3a5');}
 function exportBOM(){const wb=XLSX.utils.book_new();data.boms.forEach(b=>{const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),(b.bomNo||'BOM').slice(0,30));});XLSX.writeFile(wb,'BOM_Export_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 BOM exported!','#22d3a5');}
 function exportBOMDetail(){const b=getBOM(activeBOMId);if(!b)return;const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'BOM Detail');XLSX.writeFile(wb,'BOM_'+b.bomNo+'_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 Exported!','#22d3a5');}
+function saveDabConfig() {
+  const cfg = {
+    apiKey:  document.getElementById('cfg-dab-key')?.value.trim() || '',
+    baseUrl: document.getElementById('cfg-dab-url')?.value.trim() || ''
+  };
+  localStorage.setItem('abbProcDAB', JSON.stringify(cfg));
+  toast('✅ DAB config saved — reloading data...', '#22d3a5');
+  logActivity('⚙ Cosmos DB config updated', '#6764f6');
+  // Retry connection with new key
+  setTimeout(() => loadFromCosmos(), 500);
+}
 
+async function testDabConnection() {
+  const el = document.getElementById('dab-test-result');
+  if (el) el.innerHTML = '⏳ Testing connection...';
+  try {
+    const res = await fetchWithTimeout(
+      `${getDabBaseUrl()}/Item/id/${DOC_ID}`,
+      { method: 'GET', headers: buildDabHeaders() },
+      8000
+    );
+    if (res.status === 200 || res.status === 404) {
+      if (el) el.innerHTML = '<span style="color:#065f46;font-weight:700">✅ Connected! DAB is reachable.</span>';
+      toast('✅ DAB connection OK', '#22d3a5');
+    } else if (res.status === 401 || res.status === 403) {
+      if (el) el.innerHTML = '<span style="color:#991b1b;font-weight:700">🔐 Auth failed ('+res.status+') — wrong API key.</span>';
+      toast('🔐 Auth failed — check your API Key', '#FF000F');
+    } else {
+      if (el) el.innerHTML = '<span style="color:#92400e;font-weight:700">⚠ Unexpected status: '+res.status+'</span>';
+    }
+  } catch (err) {
+    const msg = err.name === 'AbortError' ? '⏱ Timeout — DAB unreachable' : '❌ ' + err.message;
+    if (el) el.innerHTML = `<span style="color:#991b1b;font-weight:700">${msg}</span>`;
+    toast('❌ Connection failed', '#FF000F');
+  }
+}
 
 // Position PO tooltip near mouse cursor
 document.addEventListener('mousemove', function(e){
