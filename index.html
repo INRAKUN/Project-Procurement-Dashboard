@@ -1071,52 +1071,40 @@ function _ensureArrays() {
 }
 
 // ══════════════════════════════════════════
-//  SAVE DATA TO COSMOS DB
+//  SAVE DATA TO COSMOS DB (FIXED FOR 405 ERROR)
 // ══════════════════════════════════════════
 async function saveData() {
-  console.log("🚀 saveData() function triggered!"); // <--- Debug log 1
-
   // Always save to localStorage immediately (instant backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
 
   // If a save is already running, queue another one
-  if (_isSaving) { 
-    console.log("⏳ Save already in progress, queuing this save."); // <--- Debug log 2
-    _saveQueue = true; 
-    return; 
-  }
+  if (_isSaving) { _saveQueue = true; return; }
   _isSaving = true;
 
   const payload = { id: DOC_ID, payload: JSON.stringify({ ...data, nextId }) };
 
   try {
-    console.log(`🔄 Attempting PUT (Update) to Cosmos DB for ID: ${DOC_ID}...`); // <--- Debug log 3
-    
-    // ── Try UPDATE (PUT) first ──
-    let res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
-      method : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+    // ── Send a single POST request (Upsert) ──
+    // Data API Builder for Cosmos DB generally uses POST to the base entity endpoint for both create and update.
+    const res = await fetch(`${DAB_BASE_URL}/Item`, {
+      method : 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        // 'X-MS-API-ROLE': 'admin' // Uncomment if you have role-based access configured in DAB
+      },
       body   : JSON.stringify(payload)
     });
 
-    // ── If document doesn't exist yet, CREATE it (POST) ──
-    if (res.status === 404) {
-      console.log(`⚠️ Document not found (404). Attempting POST (Create) instead...`); // <--- Debug log 4
-      
-      res = await fetch(`${DAB_BASE_URL}/Item`, {
-        method : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body   : JSON.stringify(payload)
-      });
+    if (!res.ok) {
+        // If it fails, throw the specific status code so we can see it in the console
+        throw new Error(`HTTP ${res.status} - ${res.statusText}`);
     }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    console.log("✅ Successfully saved to Cosmos DB!"); // <--- Debug log 5
+    // Success! Update the UI
     setOnlineBadge(true);
 
   } catch (err) {
-    console.error('❌ Cosmos DB save failed:', err.message); // Changed to console.error to stand out
+    console.error('Cosmos DB save failed:', err.message);
     setOnlineBadge(false);
     // Data is safe in localStorage — no data loss
   } finally {
@@ -1128,6 +1116,7 @@ async function saveData() {
     }
   }
 }
+
 // ══════════════════════════════════════════
 //  INIT — start the app
 // ══════════════════════════════════════════
