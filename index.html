@@ -1180,28 +1180,7 @@ async function loadFromCosmos() {
       _loadFromLocalStorage();
     }
 
-    setOnlineBadge(true);
-
-  } catch (err) {
-    console.warn('Cosmos DB load failed:', err.message);
-    setOnlineBadge(false);
-    _loadFromLocalStorage();
-    // Show specific message for auth vs network
-    if (err.message.includes('Auth failed')) {
-      toast('🔐 Auth failed — add DAB API Key in Settings', '#FF000F');
-    } else if (err.name === 'AbortError') {
-      toast('⏱ Cosmos DB timeout — using local cache', '#f5a623');
-    } else {
-      toast('⚠ Cosmos DB unavailable — using local cache', '#f5a623');
-    }
-  } finally {
-    hideLoader();
-    _ensureArrays();
-    fillDropdowns();
-    renderDashboard();
-  }
-}
-
+   
 // ── fallback: load from localStorage ──
 function _loadFromLocalStorage() {
   try {
@@ -1381,9 +1360,9 @@ function updateSaveBadge(state) {
 // Save a single entity type (e.g. just orders)
 async function saveEntity(entityName, records) {
   try {
-    await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}-${entityName}`, {
+    await fetchWithTimeout(`${getDabBaseUrl()}/Item/id/${DOC_ID}-${entityName}`, {
       method : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: buildDabHeaders(),
       body   : JSON.stringify({ id: `${DOC_ID}-${entityName}`, payload: records })
     });
   } catch (err) {
@@ -1781,7 +1760,34 @@ function clearPOSel(){selPOs.clear();document.querySelectorAll('.po-cb').forEach
 function bulkDeletePOs(){const c=selPOs.size;if(!c)return;if(!confirm(`Delete ${c} selected PO(s) and all their line items?`))return;const before=data.orders.length;data.orders=data.orders.filter(o=>!selPOs.has(o.poNo||o.id));const deleted=before-data.orders.length;logActivity(`🗑 Bulk deleted ${c} POs (${deleted} lines)`,'#FF000F');saveData();clearPOSel();renderOrders();toast(`🗑 ${c} PO(s) deleted`,'#FF000F');}
 function bulkChangeStatus(){const st=document.getElementById('bulk-status-sel').value;if(!st||!selPOs.size){toast('⚠ Select status and POs','#FF000F');return;}data.orders.forEach(o=>{if(selPOs.has(o.poNo||o.id))o.status=st;});logActivity(`🔄 Bulk status: ${selPOs.size} POs → ${st}`,'#6764f6');saveData();clearPOSel();renderOrders();toast(`✅ Updated to "${st}"`);}
 function editOrder(id){const o=data.orders.find(x=>x.id===id);if(!o)return;document.getElementById('orderModal-title').textContent='Edit PO';document.getElementById('o-id').value=o.id;fillDropdowns();document.getElementById('o-project').value=o.project||'';document.getElementById('o-supplier').value=o.supplier||'';document.getElementById('o-item').value=o.item||'';document.getElementById('o-qty').value=o.qty||'';document.getElementById('o-price').value=o.price||'';document.getElementById('o-currency').value=o.currency||'USD';document.getElementById('o-category').value=o.category||'Electrical';document.getElementById('o-sent').value=o.sentDate||'';document.getElementById('o-exp-delivery').value=o.expDelivery||'';document.getElementById('o-delivery').value=o.delivery||'';document.getElementById('o-status').value=o.status||'Draft';document.getElementById('o-notes').value=o.notes||'';openModal('orderModal');}
-function saveOrder(){const sup=document.getElementById('o-supplier').value,item=document.getElementById('o-item').value.trim();if(!sup||!item){toast('⚠ Supplier and Item required','#FF000F');return;}const editId=document.getElementById('o-id').value;const qty=parseFloat(document.getElementById('o-qty').value)||1,price=parseFloat(document.getElementById('o-price').value)||0;const o={id:editId||('PO'+String(nextId.o++).padStart(4,'0')),project:document.getElementById('o-project').value,supplier:sup,item,qty,price,currency:document.getElementById('o-currency').value||'USD',amount:qty*price,category:document.getElementById('o-category').value,sentDate:document.getElementById('o-sent').value,expDelivery:document.getElementById('o-exp-delivery').value,delivery:document.getElementById('o-delivery').value,status:document.getElementById('o-status').value,notes:document.getElementById('o-notes').value,createdAt:editId?(data.orders.find(x=>x.id===editId)?.createdAt||new Date().toISOString()):new Date().toISOString()};if(editId){const i=data.orders.findIndex(x=>x.id===editId);data.orders[i]=o;logActivity(`✏ PO updated: <b>${o.id}</b>`);}else{data.orders.push(o);logActivity(`➕ PO created: <b>${o.id}</b>`);}saveData();closeModal('orderModal');renderOrders();toast('✅ PO saved');}
+function saveOrder(){
+  const sup=document.getElementById('o-supplier').value,
+        item=document.getElementById('o-item').value.trim();
+  if(!sup||!item){toast('⚠ Supplier and Item required','#FF000F');return;}
+  const editId=document.getElementById('o-id').value;
+  const qty=parseFloat(document.getElementById('o-qty').value)||1,
+        price=parseFloat(document.getElementById('o-price').value)||0;
+
+  // ✅ FIX: compute new ID once so poNo === id for manual POs
+  const newId = editId ? null : ('PO'+String(nextId.o++).padStart(4,'0'));
+  const existingOrder = editId ? data.orders.find(x=>x.id===editId) : null;
+
+  const o={
+    id:    editId || newId,
+    poNo:  editId ? (existingOrder?.poNo || editId) : newId,  // ✅ NEW
+    lineNo: existingOrder?.lineNo || 1,                        // ✅ NEW
+    project:document.getElementById('o-project').value,
+    supplier:sup, item, qty, price,
+    currency:document.getElementById('o-currency').value||'USD',
+    amount:qty*price,
+    category:document.getElementById('o-category').value,
+    sentDate:document.getElementById('o-sent').value,
+    expDelivery:document.getElementById('o-exp-delivery').value,
+    delivery:document.getElementById('o-delivery').value,
+    status:document.getElementById('o-status').value,
+    notes:document.getElementById('o-notes').value,
+    createdAt: existingOrder?.createdAt || new Date().toISOString()
+  };
 function deleteOrder(id){if(!confirm('Delete PO?'))return;const o=data.orders.find(x=>x.id===id);data.orders=data.orders.filter(x=>x.id!==id);logActivity(`🗑 PO deleted: <b>${o?.id}</b>`,'#FF000F');saveData();renderOrders();toast('🗑 Deleted','#FF000F');}
 
 // ══ BOM ══
