@@ -1090,40 +1090,26 @@ function setOnlineBadge(online) {
   el.style.color      = online ? '#065f46'   : '#991b1b';
   el.style.border     = online ? '1px solid #6ee7b7' : '1px solid #fca5a5';
 }
-
 // ══════════════════════════════════════════
-//  LOAD DATA FROM COSMOS DB
+//  HELPER FUNCTIONS — Load from localStorage
 // ══════════════════════════════════════════
-// ══════════════════════════════════════════
-//  DAB CONFIG HELPERS
-// ══════════════════════════════════════════
-function getDabConfig() {
-  return JSON.parse(localStorage.getItem('abbProcDAB') || '{}');
-}
-function buildDabHeaders() {
-  const cfg = getDabConfig();
-  const headers = { 'Content-Type': 'application/json' };
-  if (cfg.apiKey && cfg.apiKey.trim()) {
-    // Azure Static Web Apps use this header for API key auth
-    headers['X-API-KEY']     = cfg.apiKey.trim();
-    // Also try Bearer in case it's an Entra/AAD token
-    headers['Authorization'] = 'Bearer ' + cfg.apiKey.trim();
+function _loadFromLocalStorage() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (cached) {
+      data   = { ...data,   ...cached };
+      nextId = { ...nextId, ...(cached.nextId || {}) };
+    }
+  } catch (e) { 
+    console.warn('localStorage parse error:', e); 
   }
-  return headers;
-}
-function getDabBaseUrl() {
-  const cfg = getDabConfig();
-  return (cfg.baseUrl && cfg.baseUrl.trim())
-    ? cfg.baseUrl.trim().replace(/\/$/, '')
-    : DAB_BASE_URL;
 }
 
-// Save / fetch with timeout helper
-function fetchWithTimeout(url, options = {}, ms = 12000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), ms);
-  return fetch(url, { ...options, signal: controller.signal })
-    .finally(() => clearTimeout(timer));
+function _ensureArrays() {
+  ['projects','suppliers','rfqs','orders','boms',
+   'procplans','contracts','reminders','activity'].forEach(k => {
+    if (!Array.isArray(data[k])) data[k] = [];
+  });
 }
 
 // ══════════════════════════════════════════
@@ -1142,11 +1128,11 @@ async function loadFromCosmos() {
     if (res.status === 404) {
       console.info('No Cosmos DB document found. Starting fresh.');
       setOnlineBadge(true);
-      hideLoader();
       _loadFromLocalStorage();
       _ensureArrays();
       fillDropdowns();
       renderDashboard();
+      hideLoader();
       return;
     }
 
@@ -1159,7 +1145,7 @@ async function loadFromCosmos() {
     const json = await res.json();
     let payload = json?.value?.[0]?.payload || json?.payload;
 
-    // ── Safe JSON parse (Bug #6 fix) ──
+    // ── Safe JSON parse ──
     if (typeof payload === 'string') {
       try {
         payload = JSON.parse(payload);
@@ -1169,179 +1155,36 @@ async function loadFromCosmos() {
       }
     }
 
-// PATH B — payload found (SUCCESS)
+    // ── PATH B: payload found (SUCCESS) ──
     if (payload) {
       const { nextId: loadedNextId, id: _, ...entities } = payload;
       data   = { ...data, ...entities };
       nextId = { ...nextId, ...(loadedNextId || {}) };
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
       toast('✅ Data loaded from Cosmos DB', '#22d3a5');
-
-      // ✅ ADD THESE THREE LINES:
-      _ensureArrays();
-      fillDropdowns();
-      renderDashboard();
-
-    // PATH C — payload empty/null
-    } else {
-      _loadFromLocalStorage();
-
-      // ✅ ADD THESE THREE LINES:
-      _ensureArrays();
-      fillDropdowns();
-      renderDashboard();
-    }
-
-    setOnlineBadge(true);
-    hideLoader();  // ✅ also add this so spinner clears
-    } else {
+    } 
+    // ── PATH C: payload empty/null ──
+    else {
       _loadFromLocalStorage();
     }
 
-   
-// ── fallback: load from localStorage ──
-// ── OUTSIDE loadFromCosmos ──
-function _loadFromLocalStorage() {
-  try {
-    const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
-    if (cached) {
-      data   = { ...data,   ...cached };
-      nextId = { ...nextId, ...(cached.nextId || {}) };
-    }
-  } catch (e) { console.warn('localStorage parse error:', e); }
-}
+    // ✅ ALWAYS run these after successful load
+    _ensureArrays();
+    fillDropdowns();
+    renderDashboard();
 
-function _ensureArrays() {
-  ['projects','suppliers','rfqs','orders','boms',
-   'procplans','contracts','reminders','activity'].forEach(k => {
-    if (!Array.isArray(data[k])) data[k] = [];
-  });
-}
-
-async function saveData() { /* ... */ }
-
-async function loadFromCosmos() { /* ... now clean */ }
-
-// ── make sure all arrays exist ──
-function _ensureArrays() {
-  ['projects','suppliers','rfqs','orders','boms',
-   'procplans','contracts','reminders','activity'].forEach(k => {
-    if (!Array.isArray(data[k])) data[k] = [];
-  });
-}
-
-// ══════════════════════════════════════════
-//  SAVE DATA TO COSMOS DB
-// ══════════════════════════════════════════
-async function saveData() {
-  // ── 1. Always write to localStorage instantly (zero-loss backup) ──
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
-
-  // ── 2. If already saving, increment queue counter and exit ──
-  if (_isSaving) {
-    _saveQueue++;
-    updateSaveBadge('queued');
-    return;
-  }
-
-  _isSaving = true;
-  updateSaveBadge('saving');
-
-  // ── 3. Watchdog: force-reset _isSaving after 20s no matter what ──
-  //    Prevents permanent stuck state if finally block itself errors
-  if (_savingTimer) clearTimeout(_savingTimer);
-  _savingTimer = setTimeout(() => {
-    if (_isSaving) {
-      console.warn('⚠ saveData() watchdog fired — resetting _isSaving');
-      _isSaving  = false;
-      _saveQueue = 0;
-      updateSaveBadge('offline');
-      toast('⚠ Save watchdog triggered — check connection', '#f5a623');
-    }
-  }, 20000);
-
-  const payload = {
-    id: DOC_ID,
-    payload: JSON.stringify({ ...data, nextId })
-  };
-
-  try {
-    const baseUrl = getDabBaseUrl();
-    const headers = buildDabHeaders();
-
-    // ── 4. Try UPDATE (PUT) first ──
-    let res = await fetchWithTimeout(
-      `${baseUrl}/Item/id/${DOC_ID}`,
-      { method: 'PUT', headers, body: JSON.stringify(payload) },
-      12000
-    );
-
-    // ── 5. If document doesn't exist yet, CREATE (POST) ──
-    if (res.status === 404) {
-      res = await fetchWithTimeout(
-        `${baseUrl}/Item`,
-        { method: 'POST', headers, body: JSON.stringify(payload) },
-        12000
-      );
-    }
-
-    if (res.status === 401 || res.status === 403) {
-      throw new Error(`Auth failed (${res.status})`);
-    }
-
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
-
-    // ── 6. Success ──
-    setOnlineBadge(true);
-    updateSaveBadge('saved');
-
-  } catch (err) {
-    console.warn('Cosmos DB save failed:', err.message);
-    setOnlineBadge(false);
-    updateSaveBadge('offline');
-
-    if (err.message.includes('Auth failed')) {
-      toast('🔐 Save blocked — add DAB API Key in ⚙ Settings', '#FF000F');
-    } else if (err.name === 'AbortError') {
-      toast('⏱ Save timed out — data kept in localStorage', '#f5a623');
-    }
-    // Data is always safe in localStorage — no data loss
-
-  } finally {
-    // ── 7. Always clear watchdog and reset flag ──
-    if (_savingTimer) { clearTimeout(_savingTimer); _savingTimer = null; }
-    _isSaving = false;
-
-    // ── 8. If saves were queued, flush ONE consolidated save ──
-    //    (All queued edits are already in localStorage & data{}, 
-    //     so one save captures everything)
-    if (_saveQueue > 0) {
-      const queued = _saveQueue;
-      _saveQueue = 0;
-      console.info(`Flushing ${queued} queued save(s) as one batch`);
-      saveData();   // recursive — will pick up all accumulated changes
-    } else {
-      updateSaveBadge('idle');
-    }
-  }
-}
     setOnlineBadge(true);
 
   } catch (err) {
-    console.warn('Cosmos DB save failed:', err.message);
+    console.warn('Cosmos DB load failed:', err.message);
     setOnlineBadge(false);
-    if (err.message.includes('Auth failed')) {
-      toast('🔐 Cosmos save blocked — check DAB API Key in ⚙ Settings', '#FF000F');
-    } else if (err.name === 'AbortError') {
-      toast('⏱ Save timeout — data kept locally', '#f5a623');
-    }
-    // Data is safe in localStorage — no data loss
+    _loadFromLocalStorage();
+    _ensureArrays();
+    fillDropdowns();
+    renderDashboard();
+
   } finally {
-    _isSaving = false;
-    if (_saveQueue) {
-      _saveQueue = false;
-      saveData();
-    }
+    hideLoader();  // ✅ Always hide spinner
   }
 }
 // ── Save status badge (shows next to Cosmos badge) ──
