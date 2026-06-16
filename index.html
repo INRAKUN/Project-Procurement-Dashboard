@@ -2649,7 +2649,30 @@ function saveData(){
   localStorage.setItem(STORAGE_KEY, JSON.stringify({...data, nextId}));
   saveToCosmosDebounced();
 }
+// ══ DEBOUNCED SAVE TO COSMOS DB ══
+let _saveTimer = null;
+let _saveQueue = 0;
 
+async function saveToCosmosDebounced() {
+  _saveQueue++;
+  
+  // If already saving, just increment queue and return
+  if (_isSaving) return;
+  
+  // Cancel pending timer
+  if (_saveTimer) clearTimeout(_saveTimer);
+  
+  // Set timer to save after 1 second of inactivity
+  _saveTimer = setTimeout(async () => {
+    if (!_isOnline) {
+      updateSaveBadge('offline');
+      return;
+    }
+    
+    await saveToCosmosDB();
+    _saveQueue = 0;
+  }, 1000);
+}
 </script>
 </body>
 </html>
