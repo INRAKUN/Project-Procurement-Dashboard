@@ -925,6 +925,38 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 </div>
 
 <script>
+// Add this at the very top of your script to test endpoints
+async function testDABEndpoints() {
+  const baseURL = 'https://polite-stone-0280a1010.7.azurestaticapps.net';
+  const endpoints = [
+    '/Item',
+    '/item',
+    '/items',
+    '/api/Item',
+    '/api/items',
+    '/graphql',
+    '/rest'
+  ];
+
+  console.log('🔍 Testing DAB endpoints...');
+  
+  for (const ep of endpoints) {
+    try {
+      const res = await fetch(baseURL + ep, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      console.log(`✅ ${ep}: ${res.status} ${res.statusText}`);
+    } catch (e) {
+      console.log(`❌ ${ep}: ${e.message}`);
+    }
+  }
+}
+
+// Call this in browser console to test
+// testDABEndpoints();
+
+  
 // ══════════════════════════════════════════
 //  CONFIGURATION
 // ══════════════════════════════════════════
@@ -1000,64 +1032,64 @@ function setOnlineBadge(online) {
 //  LOAD DATA FROM COSMOS DB
 // ══════════════════════════════════════════
 async function loadFromCosmos() {
-  showLoader('Connecting to Cosmos DB...');
+  showLoader('Loading from Cosmos DB...');
   try {
-    // Consistent endpoint with ID
-    const res = await fetch(`${DAB_BASE_URL}/Item/${DOC_ID}`, {
+    // Try GET with ID first
+    const getUrl = `${DAB_BASE_URL}/Item/${DOC_ID}`;
+    
+    const res = await fetch(getUrl, {
       method: 'GET',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-        // Add auth if needed:
-        // 'Authorization': 'Bearer YOUR_TOKEN'
-      }
+      headers: { 'Content-Type': 'application/json' }
     });
 
+    console.log(`GET ${getUrl}: ${res.status}`);
+
     if (res.status === 404) {
-      console.info('No Cosmos DB document found. Starting fresh.');
+      console.info('Document not found - first run');
       setOnlineBadge(true);
-      hideLoader();
       _loadFromLocalStorage();
+      hideLoader();
+      _ensureArrays();
+      fillDropdowns();
       renderDashboard();
       return;
     }
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
 
     const json = await res.json();
     
-    // Handle different response formats
-    let payload = json?.value?.[0] || json;
-    
-    // If data is nested in properties, extract it
-    if (payload && typeof payload === 'object') {
-      const { projects, suppliers, orders, boms, procplans, contracts, reminders, activity, nextId } = payload;
-      
-      if (projects || suppliers || orders) {
-        data = { 
-          projects: projects || [],
-          suppliers: suppliers || [],
-          rfqs: payload.rfqs || [],
-          orders: orders || [],
-          boms: boms || [],
-          procplans: procplans || [],
-          contracts: contracts || [],
-          reminders: reminders || [],
-          activity: activity || []
-        };
-        if (nextId) nextId = nextId;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
-        toast('✅ Data loaded from Cosmos DB', '#22d3a5');
-      }
+    // DAB returns either direct object or wrapped in value array
+    const doc = json.value?.[0] || json;
+
+    if (doc && doc.projects !== undefined) {
+      data = {
+        projects: doc.projects || [],
+        suppliers: doc.suppliers || [],
+        rfqs: doc.rfqs || [],
+        orders: doc.orders || [],
+        boms: doc.boms || [],
+        procplans: doc.procplans || [],
+        contracts: doc.contracts || [],
+        reminders: doc.reminders || [],
+        activity: doc.activity || []
+      };
+      if (doc.nextId) nextId = doc.nextId;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
+      toast('✅ Loaded from Cosmos DB', '#22d3a5');
+    } else {
+      _loadFromLocalStorage();
     }
 
     setOnlineBadge(true);
 
   } catch (err) {
-    console.warn('⚠ Cosmos DB load failed:', err.message);
+    console.error('Load Error:', err.message);
     setOnlineBadge(false);
     _loadFromLocalStorage();
-    toast('⚠ Using local cache (offline)', '#f5a623');
+    toast('⚠ Using local cache', '#f5a623');
   } finally {
     hideLoader();
     _ensureArrays();
@@ -1065,6 +1097,7 @@ async function loadFromCosmos() {
     renderDashboard();
   }
 }
+
 
 // ── fallback: load from localStorage ──
 function _loadFromLocalStorage() {
@@ -1089,80 +1122,89 @@ function _ensureArrays() {
 }
 
 // ══════════════════════════════════════════
-//  SAVE DATA TO COSMOS DB (FIXED FOR 405 ERROR)
+//  SAVE DATA TO COSMOS DB 
 // ══════════════════════════════════════════
 async function saveData() {
-  // Always save to localStorage immediately (instant backup)
+  // Always save to localStorage immediately
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
 
-  // If a save is already running, queue another one
   if (_isSaving) { _saveQueue = true; return; }
   _isSaving = true;
 
-  // Correct payload structure for Cosmos DB
-  const payload = { 
-    id: DOC_ID, 
-    ...data, 
-    nextId 
+  // Prepare the document
+  const doc = {
+    id: DOC_ID,
+    projects: data.projects,
+    suppliers: data.suppliers,
+    rfqs: data.rfqs,
+    orders: data.orders,
+    boms: data.boms,
+    procplans: data.procplans,
+    contracts: data.contracts,
+    reminders: data.reminders,
+    activity: data.activity,
+    nextId: nextId,
+    _ts: Math.floor(Date.now() / 1000) // Cosmos DB timestamp
   };
 
   try {
-    showLoader('Saving to Cosmos DB...');
+    showLoader('Saving data...');
+
+    // Try PUT first (standard for upsert in REST APIs)
+    const putUrl = `${DAB_BASE_URL}/Item/${DOC_ID}`;
     
-    // Try PATCH first (preferred for upsert), fallback to POST
-    const url = `${DAB_BASE_URL}/Item/${DOC_ID}`;
-    
-    const res = await fetch(url, {
-      method: 'PATCH',  // Use PATCH for upsert
+    const putRes = await fetch(putUrl, {
+      method: 'PUT',  // ← Change to PUT
       headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-        // Add auth header if needed:
-        // 'Authorization': 'Bearer YOUR_TOKEN'
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(doc)
     });
 
-    if (res.status === 404) {
-      // Document doesn't exist, try POST to create
-      console.info('Document not found, creating new one...');
-      const createRes = await fetch(`${DAB_BASE_URL}/Item`, {
+    console.log(`PUT ${putUrl}: ${putRes.status}`);
+
+    if (putRes.status === 405 || putRes.status === 404) {
+      // Fallback: Try POST to the collection endpoint
+      console.warn('PUT failed, trying POST...');
+      
+      const postUrl = `${DAB_BASE_URL}/Item`;
+      const postRes = await fetch(postUrl, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(doc)
       });
 
-      if (!createRes.ok) {
-        throw new Error(`POST failed: HTTP ${createRes.status}`);
+      console.log(`POST ${postUrl}: ${postRes.status}`);
+
+      if (!postRes.ok) {
+        const errText = await postRes.text();
+        throw new Error(`POST ${postRes.status}: ${errText}`);
       }
-      setOnlineBadge(true);
-      toast('✅ Data saved to Cosmos DB', '#22d3a5');
-    } else if (res.ok) {
-      setOnlineBadge(true);
-      toast('✅ Data synced to Cosmos DB', '#22d3a5');
-    } else {
-      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    } else if (!putRes.ok) {
+      const errText = await putRes.text();
+      throw new Error(`PUT ${putRes.status}: ${errText}`);
     }
 
+    setOnlineBadge(true);
+    console.log('✅ Data saved to Cosmos DB');
     hideLoader();
 
   } catch (err) {
-    console.error('❌ Cosmos DB save failed:', err.message);
-    console.error('Stack:', err);
+    console.error('❌ Save Error:', err.message);
     setOnlineBadge(false);
-    toast('⚠ Saved locally (offline mode)', '#f5a623');
+    // Data is safe in localStorage
   } finally {
     hideLoader();
     _isSaving = false;
     if (_saveQueue) {
       _saveQueue = false;
-      setTimeout(() => saveData(), 500);
+      setTimeout(() => saveData(), 800);
     }
   }
 }
+
 
 // ══════════════════════════════════════════
 //  INIT — start the app
