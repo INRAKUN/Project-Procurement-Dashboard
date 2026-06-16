@@ -1169,31 +1169,58 @@ async function loadFromCosmos() {
       }
     }
 
+// PATH B — payload found (SUCCESS)
     if (payload) {
-      // ── Clean destructure (Bug #2 fix) ──
       const { nextId: loadedNextId, id: _, ...entities } = payload;
-      data   = { ...data,   ...entities };
+      data   = { ...data, ...entities };
       nextId = { ...nextId, ...(loadedNextId || {}) };
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
       toast('✅ Data loaded from Cosmos DB', '#22d3a5');
+
+      // ✅ ADD THESE THREE LINES:
+      _ensureArrays();
+      fillDropdowns();
+      renderDashboard();
+
+    // PATH C — payload empty/null
+    } else {
+      _loadFromLocalStorage();
+
+      // ✅ ADD THESE THREE LINES:
+      _ensureArrays();
+      fillDropdowns();
+      renderDashboard();
+    }
+
+    setOnlineBadge(true);
+    hideLoader();  // ✅ also add this so spinner clears
     } else {
       _loadFromLocalStorage();
     }
 
    
 // ── fallback: load from localStorage ──
+// ── OUTSIDE loadFromCosmos ──
 function _loadFromLocalStorage() {
   try {
     const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     if (cached) {
       data   = { ...data,   ...cached };
       nextId = { ...nextId, ...(cached.nextId || {}) };
-      console.info('Loaded from localStorage cache.');
     }
-  } catch (e) {
-    console.warn('localStorage parse error:', e);
-  }
+  } catch (e) { console.warn('localStorage parse error:', e); }
 }
+
+function _ensureArrays() {
+  ['projects','suppliers','rfqs','orders','boms',
+   'procplans','contracts','reminders','activity'].forEach(k => {
+    if (!Array.isArray(data[k])) data[k] = [];
+  });
+}
+
+async function saveData() { /* ... */ }
+
+async function loadFromCosmos() { /* ... now clean */ }
 
 // ── make sure all arrays exist ──
 function _ensureArrays() {
@@ -1380,7 +1407,7 @@ _style.textContent = `@keyframes spin { to { transform:rotate(360deg); } }`;
 document.head.appendChild(_style);
 
 // Initialize EmailJS if configured
-const emailCfg = JSON.parse(localStorage.getItem('abbProcEmail') || '{}');
+let emailCfg = JSON.parse(localStorage.getItem('abbProcEmail') || '{}');
 if (emailCfg.pubkey && typeof emailjs !== 'undefined') {
   emailjs.init(emailCfg.pubkey);
 }
@@ -1772,10 +1799,10 @@ function saveOrder(){
   const newId = editId ? null : ('PO'+String(nextId.o++).padStart(4,'0'));
   const existingOrder = editId ? data.orders.find(x=>x.id===editId) : null;
 
-  const o={
+   const o={
     id:    editId || newId,
-    poNo:  editId ? (existingOrder?.poNo || editId) : newId,  // ✅ NEW
-    lineNo: existingOrder?.lineNo || 1,                        // ✅ NEW
+    poNo:  editId ? (existingOrder?.poNo || editId) : newId,
+    lineNo: existingOrder?.lineNo || 1,
     project:document.getElementById('o-project').value,
     supplier:sup, item, qty, price,
     currency:document.getElementById('o-currency').value||'USD',
@@ -1788,6 +1815,24 @@ function saveOrder(){
     notes:document.getElementById('o-notes').value,
     createdAt: existingOrder?.createdAt || new Date().toISOString()
   };
+
+  // ✅ ADD THIS ENTIRE BLOCK BELOW:
+  if(editId){
+    const i = data.orders.findIndex(x => x.id === editId);
+    if(i > -1) data.orders[i] = o;
+    logActivity(`✏ PO updated: <b>${o.poNo}</b> — ${o.item?.slice(0,30)}`);
+  } else {
+    data.orders.push(o);
+    logActivity(`➕ PO created: <b>${o.poNo}</b> — ${o.item?.slice(0,30)}`);
+  }
+
+  saveData();
+  closeModal('orderModal');
+  renderOrders();
+  toast('✅ PO saved');
+
+}  // ← this closes saveOrder — ADD THIS BRACE
+// deleteOrder stays here, now correctly OUTSIDE saveOrder
 function deleteOrder(id){if(!confirm('Delete PO?'))return;const o=data.orders.find(x=>x.id===id);data.orders=data.orders.filter(x=>x.id!==id);logActivity(`🗑 PO deleted: <b>${o?.id}</b>`,'#FF000F');saveData();renderOrders();toast('🗑 Deleted','#FF000F');}
 
 // ══ BOM ══
