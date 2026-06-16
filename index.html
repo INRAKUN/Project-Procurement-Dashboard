@@ -426,26 +426,6 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
   <div class="section-header"><h3>⚙ Settings & Email Alerts</h3></div>
   <div class="dash-row">
     <div class="card">
-      <div class="card" style="margin-bottom:18px">
-  <div class="card-title">☁ Azure Cosmos DB (DAB) Configuration</div>
-  <div class="alert alert-info" style="font-size:.8rem">
-    Enter your <b>Azure Static Web Apps API Key</b> or <b>Bearer Token</b>. 
-    Find it in Azure Portal → Static Web Apps → API Keys. Leave blank if DAB is set to anonymous access.
-  </div>
-  <div class="form-group" style="margin-bottom:12px">
-    <label>DAB API Key / Bearer Token</label>
-    <input id="cfg-dab-key" type="password" placeholder="paste your API key or Bearer token here">
-  </div>
-  <div class="form-group" style="margin-bottom:16px">
-    <label>DAB Base URL</label>
-    <input id="cfg-dab-url" placeholder="https://your-app.azurestaticapps.net">
-  </div>
-  <div style="display:flex;gap:8px">
-    <button class="btn btn-primary" onclick="saveDabConfig()">💾 Save DAB Config</button>
-    <button class="btn btn-outline" onclick="testDabConnection()">🔌 Test Connection</button>
-  </div>
-  <div id="dab-test-result" style="margin-top:10px;font-size:.8rem"></div>
-</div>
       <div class="card-title">📧 Email Configuration</div>
       <div class="alert alert-info">Uses <b>EmailJS</b> (free) to send real emails, or falls back to Outlook mailto.</div>
       <div class="form-group" style="margin-bottom:12px"><label>Your Email *</label><input id="cfg-email" type="email" placeholder="you@in.abb.com"></div>
@@ -913,6 +893,18 @@ input[type=checkbox]{accent-color:var(--abb-lilac);width:15px;height:15px;cursor
 </style>
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 <!-- QUICK DATE EDIT MODAL -->
 <div class="modal-overlay" id="quickDateModal">
   <div class="modal" style="max-width:480px">
@@ -1034,10 +1026,9 @@ let data = {
   procplans:[], contracts:[], reminders:[], activity:[]
 };
 let nextId = { p:1, s:1, r:1, o:1, b:1, bi:1, pp:1, c:1, rm:1 };
-let _isSaving    = false;
-let _saveQueue   = 0;       // count of pending saves (not just true/false)
-let _isOnline    = true;
-let _savingTimer = null;    // watchdog timer to prevent _isSaving stuck forever
+let _isSaving  = false;   // prevent concurrent saves
+let _saveQueue = false;   // queue a pending save if one is in progress
+let _isOnline  = true;    // tracks Cosmos DB reachability
 
 // ══════════════════════════════════════════
 //  LOADING INDICATOR
@@ -1090,21 +1081,74 @@ function setOnlineBadge(online) {
   el.style.color      = online ? '#065f46'   : '#991b1b';
   el.style.border     = online ? '1px solid #6ee7b7' : '1px solid #fca5a5';
 }
+
 // ══════════════════════════════════════════
-//  HELPER FUNCTIONS — Load from localStorage
+//  LOAD DATA FROM COSMOS DB
 // ══════════════════════════════════════════
+async function loadFromCosmos() {
+  showLoader('Connecting to Cosmos DB...');
+  try {
+    const res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
+      method : 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    // ── 404 means first run — no document yet ──
+    if (res.status === 404) {
+      console.info('No Cosmos DB document found. Starting fresh.');
+      setOnlineBadge(true);
+      hideLoader();
+      _loadFromLocalStorage();   // fallback to any cached data
+      renderDashboard();
+      return;
+    }
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const json    = await res.json();
+   let payload = json?.value?.[0]?.payload || json?.payload;
+if (typeof payload === 'string') payload = JSON.parse(payload);
+
+    if (payload) {
+      data   = { ...data,   ...payload };
+      nextId = { ...nextId, ...(payload.nextId || {}) };
+      // Sync localStorage as backup
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
+      toast('✅ Data loaded from Cosmos DB', '#22d3a5');
+    } else {
+      _loadFromLocalStorage();
+    }
+
+    setOnlineBadge(true);
+
+  } catch (err) {
+    console.warn('Cosmos DB load failed:', err.message);
+    setOnlineBadge(false);
+    _loadFromLocalStorage();
+    toast('⚠ Cosmos DB unavailable — using local cache', '#f5a623');
+  } finally {
+    hideLoader();
+    _ensureArrays();
+    fillDropdowns();
+    renderDashboard();
+  }
+}
+
+// ── fallback: load from localStorage ──
 function _loadFromLocalStorage() {
   try {
     const cached = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     if (cached) {
       data   = { ...data,   ...cached };
       nextId = { ...nextId, ...(cached.nextId || {}) };
+      console.info('Loaded from localStorage cache.');
     }
-  } catch (e) { 
-    console.warn('localStorage parse error:', e); 
+  } catch (e) {
+    console.warn('localStorage parse error:', e);
   }
 }
 
+// ── make sure all arrays exist ──
 function _ensureArrays() {
   ['projects','suppliers','rfqs','orders','boms',
    'procplans','contracts','reminders','activity'].forEach(k => {
@@ -1113,115 +1157,53 @@ function _ensureArrays() {
 }
 
 // ══════════════════════════════════════════
-//  LOAD DATA FROM COSMOS DB
+//  SAVE DATA TO COSMOS DB
 // ══════════════════════════════════════════
-async function loadFromCosmos() {
-  showLoader('Connecting to Cosmos DB...');
+async function saveData() {
+  // Always save to localStorage immediately (instant backup)
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
+
+  // If a save is already running, queue another one
+  if (_isSaving) { _saveQueue = true; return; }
+  _isSaving = true;
+
+ const payload = { id: DOC_ID, payload: JSON.stringify({ ...data, nextId }) };
+
   try {
-    const res = await fetchWithTimeout(
-      `${getDabBaseUrl()}/Item/id/${DOC_ID}`,
-      { method: 'GET', headers: buildDabHeaders() },
-      12000
-    );
+    // ── Try UPDATE (PUT) first ──
+    let res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
+      method : 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body   : JSON.stringify(payload)
+    });
 
-    // 404 = first run, no document yet
+    // ── If document doesn't exist yet, CREATE it (POST) ──
     if (res.status === 404) {
-      console.info('No Cosmos DB document found. Starting fresh.');
-      setOnlineBadge(true);
-      _loadFromLocalStorage();
-      _ensureArrays();
-      fillDropdowns();
-      renderDashboard();
-      hideLoader();
-      return;
+      res = await fetch(`${DAB_BASE_URL}/Item`, {
+        method : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body   : JSON.stringify(payload)
+      });
     }
 
-    if (res.status === 401 || res.status === 403) {
-      throw new Error(`Auth failed (${res.status}) — check your DAB API Key in Settings`);
-    }
-
-    if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
-
-    const json = await res.json();
-    let payload = json?.value?.[0]?.payload || json?.payload;
-
-    // ── Safe JSON parse ──
-    if (typeof payload === 'string') {
-      try {
-        payload = JSON.parse(payload);
-      } catch (parseErr) {
-        console.warn('Payload JSON parse failed:', parseErr);
-        payload = null;
-      }
-    }
-
-    // ── PATH B: payload found (SUCCESS) ──
-    if (payload) {
-      const { nextId: loadedNextId, id: _, ...entities } = payload;
-      data   = { ...data, ...entities };
-      nextId = { ...nextId, ...(loadedNextId || {}) };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
-      toast('✅ Data loaded from Cosmos DB', '#22d3a5');
-    } 
-    // ── PATH C: payload empty/null ──
-    else {
-      _loadFromLocalStorage();
-    }
-
-    // ✅ ALWAYS run these after successful load
-    _ensureArrays();
-    fillDropdowns();
-    renderDashboard();
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     setOnlineBadge(true);
 
   } catch (err) {
-    console.warn('Cosmos DB load failed:', err.message);
+    console.warn('Cosmos DB save failed:', err.message);
     setOnlineBadge(false);
-    _loadFromLocalStorage();
-    _ensureArrays();
-    fillDropdowns();
-    renderDashboard();
-
+    // Data is safe in localStorage — no data loss
   } finally {
-    hideLoader();  // ✅ Always hide spinner
+    _isSaving = false;
+    // If another save was queued while we were saving, run it now
+    if (_saveQueue) {
+      _saveQueue = false;
+      saveData();
+    }
   }
 }
-// ── Save status badge (shows next to Cosmos badge) ──
-function updateSaveBadge(state) {
-  let el = document.getElementById('save-status-badge');
-  if (!el) {
-    el = document.createElement('span');
-    el.id = 'save-status-badge';
-    el.style.cssText = `
-      font-size:.72rem; font-weight:700;
-      padding:3px 10px; border-radius:20px;
-      margin-right:6px; transition: all .3s;
-    `;
-    const topbarRight = document.querySelector('.topbar-right');
-    if (topbarRight) topbarRight.prepend(el);
-  }
 
-  const states = {
-    saving:  { text: '⏳ Saving...',   bg: '#dbeafe', color: '#1e40af', border: '#bfdbfe' },
-    queued:  { text: '🔄 Queued',      bg: '#fef3c7', color: '#92400e', border: '#fcd34d' },
-    saved:   { text: '✅ Saved',        bg: '#d1fae522', color: '#065f46', border: '#6ee7b7' },
-    offline: { text: '💾 Local only',  bg: '#fee2e222', color: '#991b1b', border: '#fca5a5' },
-    idle:    { text: '',               bg: 'transparent', color: 'transparent', border: 'transparent' }
-  };
-
-  const s = states[state] || states.idle;
-  el.textContent        = s.text;
-  el.style.background   = s.bg;
-  el.style.color        = s.color;
-  el.style.border       = `1px solid ${s.border}`;
-  el.style.display      = state === 'idle' ? 'none' : 'inline-block';
-
-  // Auto-hide "Saved" badge after 3 seconds
-  if (state === 'saved') {
-    setTimeout(() => updateSaveBadge('idle'), 3000);
-  }
-}
 // ══════════════════════════════════════════
 //  INDIVIDUAL ENTITY HELPERS (optional - 
 //  for future per-container architecture)
@@ -1230,9 +1212,9 @@ function updateSaveBadge(state) {
 // Save a single entity type (e.g. just orders)
 async function saveEntity(entityName, records) {
   try {
-    await fetchWithTimeout(`${getDabBaseUrl()}/Item/id/${DOC_ID}-${entityName}`, {
+    await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}-${entityName}`, {
       method : 'PUT',
-      headers: buildDabHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body   : JSON.stringify({ id: `${DOC_ID}-${entityName}`, payload: records })
     });
   } catch (err) {
@@ -1250,7 +1232,7 @@ _style.textContent = `@keyframes spin { to { transform:rotate(360deg); } }`;
 document.head.appendChild(_style);
 
 // Initialize EmailJS if configured
-let emailCfg = JSON.parse(localStorage.getItem('abbProcEmail') || '{}');
+const emailCfg = JSON.parse(localStorage.getItem('abbProcEmail') || '{}');
 if (emailCfg.pubkey && typeof emailjs !== 'undefined') {
   emailjs.init(emailCfg.pubkey);
 }
@@ -1630,52 +1612,7 @@ function clearPOSel(){selPOs.clear();document.querySelectorAll('.po-cb').forEach
 function bulkDeletePOs(){const c=selPOs.size;if(!c)return;if(!confirm(`Delete ${c} selected PO(s) and all their line items?`))return;const before=data.orders.length;data.orders=data.orders.filter(o=>!selPOs.has(o.poNo||o.id));const deleted=before-data.orders.length;logActivity(`🗑 Bulk deleted ${c} POs (${deleted} lines)`,'#FF000F');saveData();clearPOSel();renderOrders();toast(`🗑 ${c} PO(s) deleted`,'#FF000F');}
 function bulkChangeStatus(){const st=document.getElementById('bulk-status-sel').value;if(!st||!selPOs.size){toast('⚠ Select status and POs','#FF000F');return;}data.orders.forEach(o=>{if(selPOs.has(o.poNo||o.id))o.status=st;});logActivity(`🔄 Bulk status: ${selPOs.size} POs → ${st}`,'#6764f6');saveData();clearPOSel();renderOrders();toast(`✅ Updated to "${st}"`);}
 function editOrder(id){const o=data.orders.find(x=>x.id===id);if(!o)return;document.getElementById('orderModal-title').textContent='Edit PO';document.getElementById('o-id').value=o.id;fillDropdowns();document.getElementById('o-project').value=o.project||'';document.getElementById('o-supplier').value=o.supplier||'';document.getElementById('o-item').value=o.item||'';document.getElementById('o-qty').value=o.qty||'';document.getElementById('o-price').value=o.price||'';document.getElementById('o-currency').value=o.currency||'USD';document.getElementById('o-category').value=o.category||'Electrical';document.getElementById('o-sent').value=o.sentDate||'';document.getElementById('o-exp-delivery').value=o.expDelivery||'';document.getElementById('o-delivery').value=o.delivery||'';document.getElementById('o-status').value=o.status||'Draft';document.getElementById('o-notes').value=o.notes||'';openModal('orderModal');}
-function saveOrder(){
-  const sup=document.getElementById('o-supplier').value,
-        item=document.getElementById('o-item').value.trim();
-  if(!sup||!item){toast('⚠ Supplier and Item required','#FF000F');return;}
-  const editId=document.getElementById('o-id').value;
-  const qty=parseFloat(document.getElementById('o-qty').value)||1,
-        price=parseFloat(document.getElementById('o-price').value)||0;
-
-  // ✅ FIX: compute new ID once so poNo === id for manual POs
-  const newId = editId ? null : ('PO'+String(nextId.o++).padStart(4,'0'));
-  const existingOrder = editId ? data.orders.find(x=>x.id===editId) : null;
-
-   const o={
-    id:    editId || newId,
-    poNo:  editId ? (existingOrder?.poNo || editId) : newId,
-    lineNo: existingOrder?.lineNo || 1,
-    project:document.getElementById('o-project').value,
-    supplier:sup, item, qty, price,
-    currency:document.getElementById('o-currency').value||'USD',
-    amount:qty*price,
-    category:document.getElementById('o-category').value,
-    sentDate:document.getElementById('o-sent').value,
-    expDelivery:document.getElementById('o-exp-delivery').value,
-    delivery:document.getElementById('o-delivery').value,
-    status:document.getElementById('o-status').value,
-    notes:document.getElementById('o-notes').value,
-    createdAt: existingOrder?.createdAt || new Date().toISOString()
-  };
-
-  // ✅ ADD THIS ENTIRE BLOCK BELOW:
-  if(editId){
-    const i = data.orders.findIndex(x => x.id === editId);
-    if(i > -1) data.orders[i] = o;
-    logActivity(`✏ PO updated: <b>${o.poNo}</b> — ${o.item?.slice(0,30)}`);
-  } else {
-    data.orders.push(o);
-    logActivity(`➕ PO created: <b>${o.poNo}</b> — ${o.item?.slice(0,30)}`);
-  }
-
-  saveData();
-  closeModal('orderModal');
-  renderOrders();
-  toast('✅ PO saved');
-
-}  // ← this closes saveOrder — ADD THIS BRACE
-// deleteOrder stays here, now correctly OUTSIDE saveOrder
+function saveOrder(){const sup=document.getElementById('o-supplier').value,item=document.getElementById('o-item').value.trim();if(!sup||!item){toast('⚠ Supplier and Item required','#FF000F');return;}const editId=document.getElementById('o-id').value;const qty=parseFloat(document.getElementById('o-qty').value)||1,price=parseFloat(document.getElementById('o-price').value)||0;const o={id:editId||('PO'+String(nextId.o++).padStart(4,'0')),project:document.getElementById('o-project').value,supplier:sup,item,qty,price,currency:document.getElementById('o-currency').value||'USD',amount:qty*price,category:document.getElementById('o-category').value,sentDate:document.getElementById('o-sent').value,expDelivery:document.getElementById('o-exp-delivery').value,delivery:document.getElementById('o-delivery').value,status:document.getElementById('o-status').value,notes:document.getElementById('o-notes').value,createdAt:editId?(data.orders.find(x=>x.id===editId)?.createdAt||new Date().toISOString()):new Date().toISOString()};if(editId){const i=data.orders.findIndex(x=>x.id===editId);data.orders[i]=o;logActivity(`✏ PO updated: <b>${o.id}</b>`);}else{data.orders.push(o);logActivity(`➕ PO created: <b>${o.id}</b>`);}saveData();closeModal('orderModal');renderOrders();toast('✅ PO saved');}
 function deleteOrder(id){if(!confirm('Delete PO?'))return;const o=data.orders.find(x=>x.id===id);data.orders=data.orders.filter(x=>x.id!==id);logActivity(`🗑 PO deleted: <b>${o?.id}</b>`,'#FF000F');saveData();renderOrders();toast('🗑 Deleted','#FF000F');}
 
 // ══ BOM ══
@@ -2054,13 +1991,6 @@ function ganttScrollToday(scrollId){
 
 
 function renderSettings(){
-    // ── NEW: populate DAB fields ──
-  const dabCfg = getDabConfig();
-  if (document.getElementById('cfg-dab-key'))
-    document.getElementById('cfg-dab-key').value = dabCfg.apiKey || '';
-  if (document.getElementById('cfg-dab-url'))
-    document.getElementById('cfg-dab-url').value = dabCfg.baseUrl || DAB_BASE_URL;
-  // remaining code
   document.getElementById('cfg-email').value=emailCfg.email||'';
   document.getElementById('cfg-cc').value=emailCfg.cc||'';
   document.getElementById('cfg-pubkey').value=emailCfg.pubkey||'';
@@ -2345,42 +2275,7 @@ function exportExcel(type){const wb=XLSX.utils.book_new();let d2=[],hdr=[];
   XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([hdr,...d2]),type);XLSX.writeFile(wb,`${type}_export_${new Date().toISOString().slice(0,10)}.xlsx`);toast('📥 Exported!','#22d3a5');}
 function exportBOM(){const wb=XLSX.utils.book_new();data.boms.forEach(b=>{const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),(b.bomNo||'BOM').slice(0,30));});XLSX.writeFile(wb,'BOM_Export_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 BOM exported!','#22d3a5');}
 function exportBOMDetail(){const b=getBOM(activeBOMId);if(!b)return;const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'BOM Detail');XLSX.writeFile(wb,'BOM_'+b.bomNo+'_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 Exported!','#22d3a5');}
-function saveDabConfig() {
-  const cfg = {
-    apiKey:  document.getElementById('cfg-dab-key')?.value.trim() || '',
-    baseUrl: document.getElementById('cfg-dab-url')?.value.trim() || ''
-  };
-  localStorage.setItem('abbProcDAB', JSON.stringify(cfg));
-  toast('✅ DAB config saved — reloading data...', '#22d3a5');
-  logActivity('⚙ Cosmos DB config updated', '#6764f6');
-  // Retry connection with new key
-  setTimeout(() => loadFromCosmos(), 500);
-}
 
-async function testDabConnection() {
-  const el = document.getElementById('dab-test-result');
-  if (el) el.innerHTML = '⏳ Testing connection...';
-  try {
-    const res = await fetchWithTimeout(
-      `${getDabBaseUrl()}/Item/id/${DOC_ID}`,
-      { method: 'GET', headers: buildDabHeaders() },
-      8000
-    );
-    if (res.status === 200 || res.status === 404) {
-      if (el) el.innerHTML = '<span style="color:#065f46;font-weight:700">✅ Connected! DAB is reachable.</span>';
-      toast('✅ DAB connection OK', '#22d3a5');
-    } else if (res.status === 401 || res.status === 403) {
-      if (el) el.innerHTML = '<span style="color:#991b1b;font-weight:700">🔐 Auth failed ('+res.status+') — wrong API key.</span>';
-      toast('🔐 Auth failed — check your API Key', '#FF000F');
-    } else {
-      if (el) el.innerHTML = '<span style="color:#92400e;font-weight:700">⚠ Unexpected status: '+res.status+'</span>';
-    }
-  } catch (err) {
-    const msg = err.name === 'AbortError' ? '⏱ Timeout — DAB unreachable' : '❌ ' + err.message;
-    if (el) el.innerHTML = `<span style="color:#991b1b;font-weight:700">${msg}</span>`;
-    toast('❌ Connection failed', '#FF000F');
-  }
-}
 
 // Position PO tooltip near mouse cursor
 document.addEventListener('mousemove', function(e){
@@ -2625,119 +2520,7 @@ function showIFATBreachDetail(planId){
     </table>`;
   modal.classList.add('open');
 }
-  At minimum, add this block before the closing </script>:
-javascript
-Copy code
-function getDabConfig(){
-  return JSON.parse(localStorage.getItem('abbProcDAB')||'{}');
-}
-function getDabBaseUrl(){
-  return getDabConfig().baseUrl || DAB_BASE_URL;
-}
-function buildDabHeaders(){
-  const key = getDabConfig().apiKey;
-  return key
-    ? { 'Content-Type':'application/json', 'Authorization':'Bearer '+key }
-    : { 'Content-Type':'application/json' };
-}
-function fetchWithTimeout(url, opts, ms=10000){
-  const ctrl = new AbortController();
-  const timer = setTimeout(()=>ctrl.abort(), ms);
-  return fetch(url, {...opts, signal:ctrl.signal}).finally(()=>clearTimeout(timer));
-}
-function saveData(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({...data, nextId}));
-  saveToCosmosDebounced();
-}
-// ══ DEBOUNCED SAVE TO COSMOS DB ══
-let _saveTimer = null;
-let _saveQueue = 0;
 
-async function saveToCosmosDebounced() {
-  _saveQueue++;
-  
-  // If already saving, just increment queue and return
-  if (_isSaving) return;
-  
-  // Cancel pending timer
-  if (_saveTimer) clearTimeout(_saveTimer);
-  
-  // Set timer to save after 1 second of inactivity
-  _saveTimer = setTimeout(async () => {
-    if (!_isOnline) {
-      updateSaveBadge('offline');
-      return;
-    }
-    
-    await saveToCosmosDB();
-    _saveQueue = 0;
-  }, 1000);
-}
-  // ══════════════════════════════════════════
-//  SAVE TO COSMOS DB
-// ══════════════════════════════════════════
-async function saveToCosmosDB() {
-  if (!_isOnline || _isSaving) return;
-  
-  _isSaving = true;
-  updateSaveBadge('saving');
-  
-  try {
-    const payload = { ...data, nextId };
-    
-    const res = await fetchWithTimeout(
-      `${getDabBaseUrl()}/Item/id/${DOC_ID}`,
-      {
-        method: 'PUT',
-        headers: buildDabHeaders(),
-        body: JSON.stringify({ id: DOC_ID, payload })
-      },
-      12000
-    );
-
-    if (res.ok) {
-      updateSaveBadge('saved');
-      setOnlineBadge(true);
-      console.info('✅ Saved to Cosmos DB');
-    } else if (res.status === 401 || res.status === 403) {
-      updateSaveBadge('offline');
-      setOnlineBadge(false);
-      console.warn('Auth failed:', res.status);
-    } else {
-      throw new Error(`HTTP ${res.status}`);
-    }
-  } catch (err) {
-    console.warn('Cosmos DB save failed:', err.message);
-    updateSaveBadge('offline');
-    setOnlineBadge(false);
-  } finally {
-    _isSaving = false;
-  }
-}
-
-// ══════════════════════════════════════════
-//  DAB CONFIGURATION HELPERS
-// ══════════════════════════════════════════
-function getDabConfig(){
-  return JSON.parse(localStorage.getItem('abbProcDAB')||'{}');
-}
-
-function getDabBaseUrl(){
-  return getDabConfig().baseUrl || DAB_BASE_URL;
-}
-
-function buildDabHeaders(){
-  const key = getDabConfig().apiKey;
-  return key
-    ? { 'Content-Type':'application/json', 'Authorization':'Bearer '+key }
-    : { 'Content-Type':'application/json' };
-}
-
-function fetchWithTimeout(url, opts, ms=10000){
-  const ctrl = new AbortController();
-  const timer = setTimeout(()=>ctrl.abort(), ms);
-  return fetch(url, {...opts, signal:ctrl.signal}).finally(()=>clearTimeout(timer));
-}
 </script>
 </body>
 </html>
