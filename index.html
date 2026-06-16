@@ -1074,16 +1074,24 @@ function _ensureArrays() {
 //  SAVE DATA TO COSMOS DB
 // ══════════════════════════════════════════
 async function saveData() {
+  console.log("🚀 saveData() function triggered!"); // <--- Debug log 1
+
   // Always save to localStorage immediately (instant backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
 
   // If a save is already running, queue another one
-  if (_isSaving) { _saveQueue = true; return; }
+  if (_isSaving) { 
+    console.log("⏳ Save already in progress, queuing this save."); // <--- Debug log 2
+    _saveQueue = true; 
+    return; 
+  }
   _isSaving = true;
 
   const payload = { id: DOC_ID, payload: JSON.stringify({ ...data, nextId }) };
 
   try {
+    console.log(`🔄 Attempting PUT (Update) to Cosmos DB for ID: ${DOC_ID}...`); // <--- Debug log 3
+    
     // ── Try UPDATE (PUT) first ──
     let res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
       method : 'PUT',
@@ -1093,6 +1101,8 @@ async function saveData() {
 
     // ── If document doesn't exist yet, CREATE it (POST) ──
     if (res.status === 404) {
+      console.log(`⚠️ Document not found (404). Attempting POST (Create) instead...`); // <--- Debug log 4
+      
       res = await fetch(`${DAB_BASE_URL}/Item`, {
         method : 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1102,10 +1112,11 @@ async function saveData() {
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
+    console.log("✅ Successfully saved to Cosmos DB!"); // <--- Debug log 5
     setOnlineBadge(true);
 
   } catch (err) {
-    console.warn('Cosmos DB save failed:', err.message);
+    console.error('❌ Cosmos DB save failed:', err.message); // Changed to console.error to stand out
     setOnlineBadge(false);
     // Data is safe in localStorage — no data loss
   } finally {
@@ -1117,7 +1128,6 @@ async function saveData() {
     }
   }
 }
-
 // ══════════════════════════════════════════
 //  INIT — start the app
 // ══════════════════════════════════════════
