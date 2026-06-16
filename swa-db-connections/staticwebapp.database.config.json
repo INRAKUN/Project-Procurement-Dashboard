@@ -24,7 +24,7 @@
       "permissions": [
         {
           "role": "anonymous",
-          "actions": ["*"]
+          "actions": ["create", "read", "update", "delete"]
         }
       ]
     }
