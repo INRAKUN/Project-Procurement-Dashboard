@@ -2673,6 +2673,71 @@ async function saveToCosmosDebounced() {
     _saveQueue = 0;
   }, 1000);
 }
+  // ══════════════════════════════════════════
+//  SAVE TO COSMOS DB
+// ══════════════════════════════════════════
+async function saveToCosmosDB() {
+  if (!_isOnline || _isSaving) return;
+  
+  _isSaving = true;
+  updateSaveBadge('saving');
+  
+  try {
+    const payload = { ...data, nextId };
+    
+    const res = await fetchWithTimeout(
+      `${getDabBaseUrl()}/Item/id/${DOC_ID}`,
+      {
+        method: 'PUT',
+        headers: buildDabHeaders(),
+        body: JSON.stringify({ id: DOC_ID, payload })
+      },
+      12000
+    );
+
+    if (res.ok) {
+      updateSaveBadge('saved');
+      setOnlineBadge(true);
+      console.info('✅ Saved to Cosmos DB');
+    } else if (res.status === 401 || res.status === 403) {
+      updateSaveBadge('offline');
+      setOnlineBadge(false);
+      console.warn('Auth failed:', res.status);
+    } else {
+      throw new Error(`HTTP ${res.status}`);
+    }
+  } catch (err) {
+    console.warn('Cosmos DB save failed:', err.message);
+    updateSaveBadge('offline');
+    setOnlineBadge(false);
+  } finally {
+    _isSaving = false;
+  }
+}
+
+// ══════════════════════════════════════════
+//  DAB CONFIGURATION HELPERS
+// ══════════════════════════════════════════
+function getDabConfig(){
+  return JSON.parse(localStorage.getItem('abbProcDAB')||'{}');
+}
+
+function getDabBaseUrl(){
+  return getDabConfig().baseUrl || DAB_BASE_URL;
+}
+
+function buildDabHeaders(){
+  const key = getDabConfig().apiKey;
+  return key
+    ? { 'Content-Type':'application/json', 'Authorization':'Bearer '+key }
+    : { 'Content-Type':'application/json' };
+}
+
+function fetchWithTimeout(url, opts, ms=10000){
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), ms);
+  return fetch(url, {...opts, signal:ctrl.signal}).finally(()=>clearTimeout(timer));
+}
 </script>
 </body>
 </html>
