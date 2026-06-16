@@ -1073,12 +1073,6 @@ function _ensureArrays() {
 // ══════════════════════════════════════════
 //  SAVE DATA TO COSMOS DB
 // ══════════════════════════════════════════
-//  ARCHITECTURAL WARNING: Storing all data in one 
-//  document `DOC_ID` will hit the Cosmos 2MB document 
-//  size limit. If building for production scale, you 
-//  should break this into different Cosmos entities 
-//  (e.g., using the separate `saveEntity` method below).
-// ══════════════════════════════════════════
 async function saveData() {
   // Always save to localStorage immediately (instant backup)
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
@@ -1124,39 +1118,22 @@ async function saveData() {
   }
 }
 
-// Save a single entity type (e.g. just orders) -> For Future Multidocument Architecture
-async function saveEntity(entityName, records) {
-  try {
-    await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}-${entityName}`, {
-      method : 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body   : JSON.stringify({ id: `${DOC_ID}-${entityName}`, payload: records })
-    });
-  } catch (err) {
-    console.warn(`Failed to save entity "${entityName}":`, err.message);
-  }
-}
-
 // ══════════════════════════════════════════
 //  INIT — start the app
 // ══════════════════════════════════════════
-
-// Add spinner CSS
 const _style = document.createElement('style');
 _style.textContent = `@keyframes spin { to { transform:rotate(360deg); } }`;
 document.head.appendChild(_style);
 
-// Initialize EmailJS if configured
 let emailCfg = JSON.parse(localStorage.getItem('abbProcEmail') || '{}');
 if (emailCfg.pubkey && typeof emailjs !== 'undefined') {
   emailjs.init(emailCfg.pubkey);
 }
 
-// Load data (async - renders dashboard when done)
 loadFromCosmos();
 
 // ══════════════════════════════════════════
-//  MODAL SYSTEM (all use .open class ONLY)
+//  MODAL SYSTEM
 // ══════════════════════════════════════════
 function openModal(id){
   fillDropdowns();
@@ -1165,14 +1142,10 @@ function openModal(id){
 function closeModal(id){
   document.getElementById(id).classList.remove('open');
 }
-// Close on backdrop click
 document.querySelectorAll('.modal-overlay').forEach(m=>{
   m.addEventListener('click', e=>{ if(e.target===m) closeModal(m.id); });
 });
 
-// ══════════════════════════════════════════
-//  GANTT OVERLAYS (.gantt-overlay + .open)
-// ══════════════════════════════════════════
 function openGantt(type){
   fillDropdowns();
   if(type==='plan'){
@@ -1188,11 +1161,9 @@ function closeGantt(id){
   document.getElementById(id).classList.remove('open');
   document.body.style.overflow='';
 }
-// Close gantt overlays on backdrop click
 document.querySelectorAll('.gantt-overlay').forEach(g=>{
   g.addEventListener('click', e=>{ if(e.target===g) closeGantt(g.id); });
 });
-// ESC key
 document.addEventListener('keydown', e=>{
   if(e.key!=='Escape') return;
   document.querySelectorAll('.gantt-overlay.open').forEach(g=>closeGantt(g.id));
@@ -1215,7 +1186,6 @@ function showPage(id, el){
   if(pg) pg.classList.add('active');
   if(el) el.classList.add('active');
   document.getElementById('page-title').textContent = PAGE_TITLES[id]||'';
-  // Re-render on switch
   const renders={
     dashboard:renderDashboard, projects:renderProjects, suppliers:renderSuppliers,
     rfq:renderRFQ, orders:renderOrders, bom:renderBOM,
@@ -1256,7 +1226,6 @@ function statusBadge(st){
 function projBadge(id){ const p=getProjById(id); if(!p) return '<span class="badge badge-gray">—</span>';
   return `<span class="badge badge-purple" title="${p.name}"><span class="color-dot" style="background:${p.color||'#6764f6'}"></span>${p.code}</span>`; }
 
-// Fill all dropdowns
 function fillDropdowns(){
   const pOpts='<option value="">-- No Project --</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join('');
   const sOpts='<option value="">-- Select Supplier --</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
@@ -1265,28 +1234,18 @@ function fillDropdowns(){
   ['bom-project'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML='<option value="">-- Select Project --</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join('');el.value=v;}});
   ['o-supplier','r-supplier','c-supplier'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=sOpts;el.value=v;}});
   ['bi-supplier'].forEach(id=>{const el=document.getElementById(id); if(el){const v=el.value;el.innerHTML=sAny;el.value=v;}});
-  // Filter selects
   ['po-proj-filter','rfq-proj-filter','pp-proj-filter','bom-proj-filter'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;
   });
-  ['po-sup-filter'].forEach(id=>{
+  ['po-sup-filter','bom-item-sup-filter'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
     const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;
   });
-  ['bom-item-sup-filter'].forEach(id=>{
-    const el=document.getElementById(id); if(!el) return;
-    const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;
-  });
-  // Gantt filters
-  ['plan-gantt-proj'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;});
+  ['plan-gantt-proj','po-gantt-proj'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;});
   ['po-gantt-sup'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Suppliers</option>'+data.suppliers.map(s=>`<option value="${s.id}">${s.name}</option>`).join(''); el.value=v;});
-  ['po-gantt-proj'].forEach(id=>{const el=document.getElementById(id); if(!el) return; const v=el.value; el.innerHTML='<option value="">All Projects</option>'+data.projects.map(p=>`<option value="${p.id}">${p.code} – ${p.name}</option>`).join(''); el.value=v;});
 }
 
-// ══════════════════════════════════════════
-//  TOPBAR DATE
-// ══════════════════════════════════════════
 document.getElementById('topbar-date').textContent = new Date().toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
 
 // ══ DASHBOARD ══
@@ -1301,13 +1260,11 @@ function renderDashboard(){
     <div class="kpi-card" style="border-top:4px solid var(--abb-red)"><div class="kpi-icon">⏳</div><div class="kpi-info"><div class="kpi-value">${pendingPOs}</div><div class="kpi-label">Pending POs</div></div></div>
     <div class="kpi-card" style="border-top:4px solid #f5a623"><div class="kpi-icon">🏭</div><div class="kpi-info"><div class="kpi-value">${totalSup}</div><div class="kpi-label">Suppliers</div></div></div>
     <div class="kpi-card" style="border-top:4px solid #06b6d4"><div class="kpi-icon">🗂</div><div class="kpi-info"><div class="kpi-value">${totalProj}</div><div class="kpi-label">Projects</div></div></div>`;
-  // Alerts
   const breaches=getBreaches();
   const alertEl=document.getElementById('dash-alerts');
   alertEl.innerHTML=breaches.length?`<div class="alert alert-danger">🚨 <b>${breaches.length}</b> PO delivery breach(es) detected! <button class="btn btn-danger btn-sm" onclick="showPage('settings',document.getElementById('nav-settings'))">View Report</button> <button class="btn btn-outline btn-sm" onclick="openOutlookAlert()">📧 Email Alert</button></div>`:'';
   document.getElementById('breach-alert-top').style.display=breaches.length?'':'none';
   document.getElementById('breach-alert-top').textContent=breaches.length?`🚨 ${breaches.length} breach(es)`:'';
-  // PO by status
   const statCounts={};
   data.orders.forEach(o=>{statCounts[o.status]=(statCounts[o.status]||0)+1;});
   const colors={Draft:'#94a3b8',Approved:'#22d3a5',Sent:'#6764f6',Acknowledged:'#a78bfa',Delivered:'#22d3a5',Closed:'#64748b',Cancelled:'#FF000F'};
@@ -1317,11 +1274,9 @@ function renderDashboard(){
       <div class="prog-bar" style="flex:1"><div class="prog-fill" style="width:${Math.round(c/totalPOs*100)}%;background:${colors[s]||'#94a3b8'}"></div></div>
       <span style="font-weight:700;font-size:.85rem;min-width:24px;text-align:right">${c}</span>
     </div>`).join('')||'<div class="empty-state"><div class="empty-icon">📦</div>No POs yet</div>';
-  // Upcoming deliveries
   const today=new Date(); today.setHours(0,0,0,0);
   const upcoming=data.orders.filter(o=>o.expDelivery&&!o.delivery&&!['Cancelled','Closed'].includes(o.status)).map(o=>({...o,dl:daysLeft(o.expDelivery)})).sort((a,b)=>a.dl-b.dl).slice(0,6);
   document.getElementById('dash-deliveries').innerHTML=upcoming.length?upcoming.map(o=>{const dl=o.dl; const c=dl<0?'#FF000F':dl<=7?'#f5a623':'#22d3a5'; return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><div><div style="font-weight:700;font-size:.83rem">${o.id}</div><div style="font-size:.75rem;color:var(--muted)">${o.item?.slice(0,30)||''}</div></div><span style="background:${c}22;color:${c};border:1px solid ${c}55;border-radius:6px;padding:3px 8px;font-size:.72rem;font-weight:700">${dl<0?Math.abs(dl)+'d overdue':dl===0?'Today':dl+'d left'}</span></div>`;}).join(''):'<div class="empty-state"><div class="empty-icon">✅</div>No upcoming deliveries</div>';
-  // Top suppliers
   const supVals={};
   data.orders.forEach(o=>{if(o.supplier)supVals[o.supplier]=(supVals[o.supplier]||0)+(o.amount||0);});
   const topSups=Object.entries(supVals).sort((a,b)=>b[1]-a[1]).slice(0,5);
@@ -1332,7 +1287,6 @@ function renderDashboard(){
       <div class="prog-bar" style="flex:1"><div class="prog-fill" style="width:${Math.round(v/maxVal*100)}%;background:var(--abb-lilac)"></div></div>
       <span style="font-size:.82rem;font-weight:700;min-width:70px;text-align:right">$${(v/1000).toFixed(1)}K</span>
     </div>`).join(''):'<div class="empty-state"><div class="empty-icon">🏭</div>No data yet</div>';
-  // Recent activity
   document.getElementById('dash-activity').innerHTML=data.activity.slice(0,8).map(a=>`
     <div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border);align-items:flex-start">
       <span style="width:8px;height:8px;border-radius:50%;background:${a.color||'#6764f6'};flex-shrink:0;margin-top:5px"></span>
@@ -1414,7 +1368,6 @@ function renderReminders(){
   const rows=[...data.reminders].sort((a,b)=>new Date(a.date||'9999')-new Date(b.date||'9999'));
   const prColors={Normal:'#6764f6',High:'#f5a623',Urgent:'#FF000F'};
   tb.innerHTML=rows.map(r=>{const dl=daysLeft(r.date); return `<tr><td>${r.msg}</td><td>${fmtDate(r.date)}</td><td><span class="badge" style="background:${prColors[r.priority]||'#6764f6'}22;color:${prColors[r.priority]||'#6764f6'}">${r.priority||'Normal'}</span></td><td>${statusBadge(r.done?'Completed':'Active')}</td><td><div class="action-btns"><button class="btn btn-outline btn-sm" onclick="toggleReminder('${r.id}')">✔</button><button class="btn btn-danger btn-sm" onclick="deleteReminder('${r.id}')">🗑</button></div></td></tr>`;}).join('');
-  // notif count
   const due=data.reminders.filter(r=>!r.done&&r.date&&daysLeft(r.date)<=1).length;
   const nc=document.getElementById('notif-count');
   nc.style.display=due?'':'none'; nc.textContent=due||'';
@@ -1445,7 +1398,6 @@ function renderOrders(){
            (!search||(poNo+o.item+getSupName(o.supplier)).toLowerCase().includes(search));
   });
 
-  // Group ALL lines by PO number (o.poNo with fallback to o.id for legacy data)
   const grouped={};
   allLines.forEach(o=>{
     const poNo=o.poNo||o.id;
@@ -1458,7 +1410,6 @@ function renderOrders(){
       };
     }
     grouped[poNo].lines.push(o);
-    // Inherit dates from any line that has them
     if(o.sentDate)    grouped[poNo].sentDate    = grouped[poNo].sentDate    || o.sentDate;
     if(o.expDelivery) grouped[poNo].expDelivery = grouped[poNo].expDelivery || o.expDelivery;
     if(o.delivery)    grouped[poNo].delivery    = grouped[poNo].delivery    || o.delivery;
@@ -1555,7 +1506,6 @@ function renderBOM(){
   const search=(document.getElementById('bom-search')?.value||'').toLowerCase();
   const pF=document.getElementById('bom-proj-filter')?.value||'',stF=document.getElementById('bom-status-filter')?.value||'';
   const rows=data.boms.filter(b=>(!pF||b.project===pF)&&(!stF||b.status===stF)&&(!search||(b.bomNo+b.description).toLowerCase().includes(search)));
-  // KPIs
   let totI=0,totR=0,totP=0,totPart=0;
   data.boms.forEach(b=>(b.items||[]).forEach(it=>{totI++;const{status}=getPOStatus(it,b.project);if(status==='released')totR++;else if(status==='pending')totP++;else totPart++;}));
   document.getElementById('bom-kpis').innerHTML=`
@@ -1594,7 +1544,6 @@ function renderBOMItems(){
   const bom=getBOM(activeBOMId);if(!bom)return;
   const p=getProjById(bom.project);
   document.getElementById('bom-detail-title').textContent=`📋 ${bom.bomNo} Rev ${bom.rev||'A'} — ${p?p.code+' '+p.name:'No Project'}`;
-  // info card
   const sc={Draft:'#94a3b8','In Review':'#f5a623',Released:'#22d3a5',Obsolete:'#64748b'}[bom.status]||'#94a3b8';
   document.getElementById('bom-info-card').innerHTML=`<div style="display:flex;flex-wrap:wrap;gap:20px;align-items:center"><div><span style="color:var(--muted);font-size:.72rem">BOM No.</span><br><b>${bom.bomNo}</b></div><div><span style="color:var(--muted);font-size:.72rem">Rev</span><br><b>${bom.rev||'A'}</b></div><div><span style="color:var(--muted);font-size:.72rem">Project</span><br><b>${p?p.code+' – '+p.name:'—'}</b></div><div style="flex:1"><span style="color:var(--muted);font-size:.72rem">Description</span><br>${bom.description||'—'}</div><div style="margin-left:auto;display:flex;gap:8px;align-items:center"><span style="background:${sc}22;color:${sc};border:1px solid ${sc}55;border-radius:6px;padding:4px 12px;font-weight:700">${bom.status}</span><button class="btn btn-outline btn-sm" onclick="editBOM('${bom.id}')">✏ Edit</button></div></div>`;
   const items=bom.items||[];let rel=0,pend=0,part=0;items.forEach(it=>{const{status}=getPOStatus(it,bom.project);if(status==='released')rel++;else if(status==='pending')pend++;else part++;});
@@ -1650,26 +1599,23 @@ function renderProcPlan(){
   tb.innerHTML=rows.map(p=>{
     const today=new Date(); today.setHours(0,0,0,0);
 
-    // ── IFAT breach logic ──────────────────────────────
     let ifatBadge='<span class="badge badge-gray">—</span>';
     let ifatRowStyle='';
     if(p.ifat){
       const ifatD=new Date(p.ifat+'T00:00:00');
-      const safeD=new Date(ifatD); safeD.setDate(safeD.getDate()-5); // 5-day buffer
+      const safeD=new Date(ifatD); safeD.setDate(safeD.getDate()-5);
 
-      // Get all active PO lines for this project
       const projectLines=data.orders.filter(o=>{
         const poNo=o.poNo||o.id;
         return o.project===p.project && !['Cancelled','Closed'].includes(o.status) && o.expDelivery;
       });
 
-      // Deduplicate by poNo - use latest expDelivery per PO
       const poMap={};
       projectLines.forEach(o=>{
         const poNo=o.poNo||o.id;
         if(!poMap[poNo]||o.expDelivery>poMap[poNo])poMap[poNo]=o.expDelivery;
       });
-      const poDeliveries=Object.entries(poMap); // [[poNo, expDelivery], ...]
+      const poDeliveries=Object.entries(poMap);
 
       const breachedPOs = poDeliveries.filter(([,d])=>new Date(d+'T00:00:00')>ifatD);
       const warningPOs  = poDeliveries.filter(([,d])=>{
@@ -1687,7 +1633,6 @@ function renderProcPlan(){
         ifatBadge=`<span class="badge badge-green" style="font-size:.72rem">✅ All on time</span>`;
       }
 
-      // Also flag if today is past IFAT
       if(today>ifatD && p.status!=='Completed'){
         ifatBadge += `<br><span class="badge badge-red" style="font-size:.68rem;margin-top:3px">🔴 IFAT Overdue</span>`;
         ifatRowStyle='border-left:3px solid #FF000F;background:rgba(255,0,15,.04);';
@@ -1777,7 +1722,7 @@ function buildPlanGantt(){
   const total=maxD-minD;const{ms,w}=gZoom(planGanttZoom);const totalW=Math.ceil(total/ms)*w;
   const ROW=72;
   function dToX(d){const dt=d instanceof Date?d:new Date(d+'T00:00:00');return((dt-minD)/total)*totalW;}
-  // Header
+  
   document.getElementById('plan-gantt-header').style.width=totalW+'px';
   document.getElementById('plan-gantt-header').innerHTML=buildGanttHeader('plan-gantt-header',minD,maxD,planGanttZoom);
   let labHTML='',barsHTML=`<div style="width:${totalW}px;position:relative">`;
@@ -1785,11 +1730,9 @@ function buildPlanGantt(){
     const p=getProjById(plan.project);const pc=GANTT_COLORS[idx%GANTT_COLORS.length];const rowTop=idx*ROW;const midY=rowTop+ROW/2;const rowBg=idx%2===0?'rgba(255,255,255,.015)':'rgba(255,255,255,.04)';
     const breachPOs=data.orders.filter(o=>o.project===plan.project&&o.expDelivery&&!['Cancelled'].includes(o.status)&&new Date(o.expDelivery+'T00:00:00')>new Date(plan.delivery+'T00:00:00'));
     labHTML+=`<div onclick="editProcPlan('${plan.id}')" style="height:${ROW}px;padding:0 14px;display:flex;align-items:center;gap:8px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer" onmouseover="this.style.background='rgba(103,100,246,.12)'" onmouseout="this.style.background='${rowBg}'"><div style="width:4px;height:44px;border-radius:2px;background:${pc};flex-shrink:0"></div><div style="min-width:0;flex:1"><div style="color:#e2e8f0;font-weight:700;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.code||plan.id}</div><div style="color:#94a3b8;font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p?.name||''}</div><div style="margin-top:3px">${breachPOs.length?`<span class="badge badge-red" style="font-size:.65rem">🚨${breachPOs.length} breach</span>`:'<span class="badge badge-green" style="font-size:.65rem">✅ OK</span>'}</div></div></div>`;
-    // row bg
     barsHTML+=`<div style="position:absolute;top:${rowTop}px;left:0;width:100%;height:${ROW}px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.04)"></div>`;
-    // Spine
     const spS=plan.ifat||plan.fat||plan.delivery;if(spS&&plan.delivery){const x1=dToX(spS),x2=dToX(plan.delivery);barsHTML+=`<div style="position:absolute;top:${midY-3}px;left:${x1}px;width:${Math.max(x2-x1,2)}px;height:6px;background:linear-gradient(90deg,${pc}66,${pc}22);border-radius:3px"></div>`;}
-    // Milestone pin function
+    
     function pin(dateStr,color,label){if(!dateStr)return;const x=dToX(dateStr);const d=new Date(dateStr+'T00:00:00');const ds=d.getDate()+'/'+(d.getMonth()+1);
       barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'${label} Milestone','${p?.code||''}','Date: ${fmtDate(dateStr)}','Project: ${p?.name||''}','Status: ${plan.status}')" onmouseleave="hideGTip('plan-gantt-tip')" onclick="editProcPlan('${plan.id}')" style="position:absolute;top:${midY-22}px;left:${x-13}px;width:26px;cursor:pointer;text-align:center;z-index:2">
         <div style="width:26px;height:26px;border-radius:50%;background:${color};border:2.5px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;color:#fff;box-shadow:0 2px 8px ${color}66" onmouseover="this.style.transform='scale(1.25)'" onmouseout="this.style.transform='scale(1)'">${label==='IFAT'?'I':label==='FAT'?'F':'🏁'}</div>
@@ -1797,14 +1740,14 @@ function buildPlanGantt(){
         <div style="background:${color}22;border:1px solid ${color}55;color:${color};border-radius:3px;padding:1px 3px;font-size:.6rem;font-weight:700;white-space:nowrap">${ds}</div>
       </div>`;}
     pin(plan.ifat,'#6764f6','IFAT');pin(plan.fat,'#f5a623','FAT');pin(plan.delivery,'#FF000F','DELIVERY');
-    // PO dots
+    
     data.orders.filter(o=>o.project===plan.project&&(o.expDelivery||o.delivery)&&!['Cancelled'].includes(o.status)).forEach(po=>{
       const dateStr=po.expDelivery||po.delivery;const x=dToX(dateStr);const breach=plan.delivery&&new Date(dateStr+'T00:00:00')>new Date(plan.delivery+'T00:00:00');const dc=breach?'#FF000F':'#22d3a5';
       barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'${breach?'🚨 BREACH':'✅ On Track'}','PO: ${po.id}','Item: ${po.item?.replace(/'/g,'')}','Supplier: ${getSupName(po.supplier)}','Exp: ${fmtDate(dateStr)}','Plan: ${fmtDate(plan.delivery)}')" onmouseleave="hideGTip('plan-gantt-tip')" onclick="closeGantt('planGanttOverlay');editOrder('${po.id}')" style="position:absolute;top:${midY+14}px;left:${x-7}px;cursor:pointer;z-index:2">
         <div style="width:14px;height:14px;border-radius:50%;background:${dc};border:2px solid rgba(255,255,255,.5);box-shadow:0 0 5px ${dc}99;${breach?'animation:pulseBreach 1s infinite':''}"></div>
       </div>`; });
   });
-  // Today
+  
   const tx=dToX(new Date());const totH=plans.length*ROW;
   barsHTML+=`<div style="position:absolute;top:0;left:${tx}px;width:2px;height:${totH}px;background:linear-gradient(180deg,#ff6b6b,#ff6b6b88);pointer-events:none;z-index:5"></div><div style="position:absolute;top:0;left:${tx-16}px;width:32px;background:#FF000F;color:#fff;font-size:.6rem;font-weight:800;text-align:center;padding:2px 0;border-radius:0 0 3px 3px;z-index:5">TODAY</div></div>`;
   document.getElementById('plan-gantt-label-rows').innerHTML=labHTML;
@@ -1820,7 +1763,7 @@ function buildPOGantt(){
   const sub=document.getElementById('po-gantt-sub');
   if(!orders.length){document.getElementById('po-gantt-label-rows').innerHTML='<div style="padding:30px;color:#7c7fa8;text-align:center;font-size:.82rem">No POs with date info. Add Sent/Delivery dates.</div>';document.getElementById('po-gantt-header').innerHTML='';document.getElementById('po-gantt-bars').innerHTML='';if(sub)sub.textContent='0 POs';return;}
   if(sub)sub.textContent=`${orders.length} PO(s)`;
-  // Group by supplier
+  
   const groups={};orders.forEach(o=>{const k=o.supplier||'__';if(!groups[k])groups[k]=[];groups[k].push(o);});
   const supKeys=Object.keys(groups).sort((a,b)=>getSupName(a).localeCompare(getSupName(b)));
   const allD=[];orders.forEach(o=>{['sentDate','expDelivery','delivery'].forEach(k=>{if(o[k])allD.push(new Date(o[k]+'T00:00:00'));});});allD.push(new Date());
@@ -1849,15 +1792,15 @@ function buildPOGantt(){
       const stc={Draft:'#94a3b8',Approved:'#22d3a5',Sent:'#6764f6',Acknowledged:'#a78bfa',Delivered:'#22d3a5',Closed:'#64748b',Cancelled:'#FF000F'}[po.status]||'#94a3b8';
       labHTML+=`<div onclick="closeGantt('poGanttOverlay');editOrder('${po.id}')" style="height:${RPO}px;padding:0 14px 0 22px;display:flex;align-items:center;gap:8px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.04);cursor:pointer" onmouseover="this.style.background='rgba(103,100,246,.1)'" onmouseout="this.style.background='${rowBg}'"><div style="width:3px;height:36px;border-radius:2px;background:${bc};flex-shrink:0"></div><div style="min-width:0;flex:1"><div style="color:#e2e8f0;font-weight:700;font-size:.78rem;display:flex;align-items:center;gap:5px"><span>${po.id}</span><span style="background:${stc}22;color:${stc};border:1px solid ${stc}44;border-radius:3px;padding:1px 4px;font-size:.62rem">${po.status}</span></div><div style="color:#94a3b8;font-size:.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${po.item||''}</div>${proj?`<div style="color:#6764f6;font-size:.66rem">${proj.code}</div>`:''}</div></div>`;
       barsHTML+=`<div style="position:absolute;top:${rowTop}px;left:0;width:100%;height:${RPO}px;background:${rowBg};border-bottom:1px solid rgba(255,255,255,.04)"></div>`;
-      // Duration bar sentDate → expDelivery
+      
       const barS=po.sentDate?new Date(po.sentDate+'T00:00:00'):null;const barE=expD;
       if(barS&&barE&&barE>barS){const bx=dToX(barS),bx2=dToX(barE),bw=Math.max(bx2-bx,4);const by=midY-8;
         barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'📦 ${po.id}','Item: ${po.item?.replace(/'/g,'')?.slice(0,40)}','Supplier: ${sName}','Sent: ${fmtDate(po.sentDate)}','Exp Delivery: ${fmtDate(po.expDelivery)}','Exact Delivery: ${fmtDate(po.delivery)||'Pending'}','Amount: ${fmtMoney(po.amount,po.currency)}','Status: ${po.status}'${overdue?`,'⚠ OVERDUE by ${Math.ceil((today-expD)/86400000)}d'`:actD?`,'✅ Delivered ${fmtDate(po.delivery)}'`:''})" onmouseleave="hideGTip('po-gantt-tip')" onclick="closeGantt('poGanttOverlay');editOrder('${po.id}')" style="position:absolute;top:${by}px;left:${bx}px;width:${bw}px;height:16px;cursor:pointer;background:linear-gradient(90deg,${bc}dd,${bc}88);border-radius:8px;border:1.5px solid ${bc};box-shadow:0 2px 8px ${bc}44;${overdue?'animation:pulseBreach 1s infinite':''}"></div>`;}
-      // Sent marker
+      
       if(po.sentDate){const x=dToX(po.sentDate);barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'📅 Sent Date','PO: ${po.id}','Date: ${fmtDate(po.sentDate)}')" onmouseleave="hideGTip('po-gantt-tip')" style="position:absolute;top:${midY-8}px;left:${x-7}px;width:14px;height:14px;border-radius:50%;background:#a5b4fc;border:2px solid rgba(255,255,255,.6);box-shadow:0 0 5px #a5b4fc88;z-index:3;cursor:pointer"></div>`;}
-      // Exp delivery marker
+      
       if(po.expDelivery){const x=dToX(po.expDelivery);const dc=overdue?'#FF000F':'#f5a623';barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'📦 Expected Delivery','PO: ${po.id}','Date: ${fmtDate(po.expDelivery)}'${overdue?`,'⚠ OVERDUE'`:''})" onmouseleave="hideGTip('po-gantt-tip')" style="position:absolute;top:${midY-8}px;left:${x-7}px;width:14px;height:14px;border-radius:50%;background:${dc};border:2px solid rgba(255,255,255,.6);box-shadow:0 0 5px ${dc}88;z-index:3;cursor:pointer;${overdue?'animation:pulseBreach 1s infinite':''}"></div>`;}
-      // Actual delivery marker
+      
       if(po.delivery){const x=dToX(po.delivery);barsHTML+=`<div class="g-pin" onmouseenter="showGTip(event,'✅ Exact Delivery','PO: ${po.id}','Date: ${fmtDate(po.delivery)}')" onmouseleave="hideGTip('po-gantt-tip')" style="position:absolute;top:${midY-8}px;left:${x-7}px;width:14px;height:14px;border-radius:50%;background:#22d3a5;border:2.5px solid rgba(255,255,255,.8);box-shadow:0 0 8px #22d3a588;z-index:4;cursor:pointer"></div><div style="position:absolute;top:${midY-6}px;left:${x-4}px;color:#fff;font-size:8px;font-weight:900;z-index:5;pointer-events:none">✓</div>`;}
       curTop+=RPO;
     });
@@ -1923,7 +1866,6 @@ function getBreaches(){
     const ifatD=new Date(plan.ifat+'T00:00:00');
     const safeD=new Date(ifatD); safeD.setDate(safeD.getDate()-5);
 
-    // Deduplicate POs by poNo - use latest expDelivery
     const poMap={};
     data.orders.filter(o=>o.project===plan.project&&(o.expDelivery||o.delivery)&&!['Cancelled','Closed'].includes(o.status))
       .forEach(o=>{
@@ -1934,11 +1876,10 @@ function getBreaches(){
 
     Object.values(poMap).forEach(({date,o})=>{
       const poD=new Date(date+'T00:00:00');
-      const diffFromIFAT=Math.ceil((poD-ifatD)/86400000); // +ve = after IFAT = breach
-      const diffFromSafe=Math.ceil((poD-safeD)/86400000); // +ve = past safe date
+      const diffFromIFAT=Math.ceil((poD-ifatD)/86400000);
+      const diffFromSafe=Math.ceil((poD-safeD)/86400000);
 
       if(diffFromIFAT>0){
-        // BREACH: PO arrives AFTER IFAT
         const p=getProjById(plan.project);
         breaches.push({
           type:'breach',
@@ -1950,14 +1891,13 @@ function getBreaches(){
           amount:fmtMoney(o.amount,o.currency)
         });
       } else if(diffFromSafe>0){
-        // WARNING: PO arrives within 5-day safe window before IFAT
         const p=getProjById(plan.project);
         breaches.push({
           type:'warning',
           planId:plan.id, poNo:o.poNo||o.id, item:o.item,
           projName:p?.name||'', projCode:p?.code||'',
           ifatDate:plan.ifat, poDate:date,
-          diffDays:diffFromIFAT, // negative = days before IFAT
+          diffDays:diffFromIFAT,
           supplier:getSupName(o.supplier), status:o.status,
           amount:fmtMoney(o.amount,o.currency)
         });
@@ -2051,9 +1991,7 @@ function openImportModal(type){document.getElementById('import-type').value=type
 };document.getElementById('import-hint').textContent=hints[type]||'Upload Excel file';openModal('importModal');}
 function previewImport(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];importRows=XLSX.utils.sheet_to_json(ws,{defval:''});const prev=document.getElementById('import-preview');if(!importRows.length){prev.innerHTML='<div class="alert alert-warn">No data found.</div>';return;}prev.innerHTML=`<div class="alert alert-success">✅ Found <b>${importRows.length}</b> rows | Columns: ${Object.keys(importRows[0]).join(', ')}</div>`;document.getElementById('import-btn').style.display='flex';};reader.readAsArrayBuffer(file);}
 function confirmImport(){const type=document.getElementById('import-type').value;if(!importRows.length)return;const gc=(r,...keys)=>{
-  // Try exact match first
   for(const k of keys){if(r[k]!==undefined&&r[k]!==null&&String(r[k]).trim()!==''&&String(r[k]).trim()!=='None')return String(r[k]).trim();}
-  // Try case-insensitive match
   const rKeys=Object.keys(r);
   for(const k of keys){
     const kl=k.toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -2064,30 +2002,24 @@ function confirmImport(){const type=document.getElementById('import-type').value
   if(typeof v==='number'&&v>1000){const d=new Date(Date.UTC(1899,11,30)+v*86400000);return d.toISOString().slice(0,10);}
   const s=String(v).trim().replace(/\s+/,' ');
   if(!s||s==='None'||s==='null'||s==='undefined')return'';
-  // Handle "YYYY-MM-DD HH:MM:SS" format from Excel datetime
   const isoMatch=s.match(/^(\d{4}-\d{2}-\d{2})/);
   if(isoMatch)return isoMatch[1];
-  // Handle DD/MM/YYYY or MM/DD/YYYY
   const slashMatch=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if(slashMatch)return `${slashMatch[3]}-${slashMatch[2].padStart(2,'0')}-${slashMatch[1].padStart(2,'0')}`;
   const d=new Date(s);return isNaN(d.getTime())?'':d.toISOString().slice(0,10);
 }catch{return'';}};let added=0,skipped=0;
   if(type==='orders'){
-  // Collect all PO numbers in this import file
   const incomingPoNos=new Set(importRows.map(r=>{
     const raw=gc(r,'PO #','PO Number','PO No','Purchase Order #','Purchase Order Number','Order Number','Order No','PO');
     const first=r[Object.keys(r)[0]];
     return raw||(first&&String(first).trim()&&String(first).trim()!=='None'?String(first).trim():'');
   }).filter(Boolean));
-  // Remove existing lines for those PO numbers (clean re-import)
   data.orders=data.orders.filter(o=>!incomingPoNos.has(o.poNo||o.id));
-  importRows.forEach(r=>{const item=gc(r,'Item/Description','Item Description','Item','Description','Material Description','Material','Short Text','Item Text','PO Item Text','Material Text','Line Item Description','Desc');const sName=gc(r,'Supplier Name','Supplier','Vendor');if(!item&&!sName){skipped++;return;}let sup=data.suppliers.find(s=>s.name.toLowerCase()===sName.toLowerCase());if(!sup&&sName){sup={id:'S'+String(nextId.s++).padStart(3,'0'),name:sName,contact:'',email:'',phone:'',country:'',category:'General',createdAt:new Date().toISOString()};data.suppliers.push(sup);}const pCode=gc(r,'Project Code','Project');let proj=data.projects.find(p=>p.code.toLowerCase()===pCode.toLowerCase());const pName=gc(r,'Project Name');if(!proj&&(pCode||pName)){proj={id:'P'+String(nextId.p++).padStart(3,'0'),code:pCode||('PRJ-IMP-'+nextId.p),name:pName||pCode,manager:'',dept:'',start:'',end:'',budget:0,currency:'USD',status:'Active',color:'#6764f6',desc:'Auto-created',createdAt:new Date().toISOString()};data.projects.push(proj);}const qty=parseFloat(gc(r,'Qty','Quantity'))||1,price=parseFloat(gc(r,'Unit Price','Price'))||0;// Read actual PO number from Excel
+  importRows.forEach(r=>{const item=gc(r,'Item/Description','Item Description','Item','Description','Material Description','Material','Short Text','Item Text','PO Item Text','Material Text','Line Item Description','Desc');const sName=gc(r,'Supplier Name','Supplier','Vendor');if(!item&&!sName){skipped++;return;}let sup=data.suppliers.find(s=>s.name.toLowerCase()===sName.toLowerCase());if(!sup&&sName){sup={id:'S'+String(nextId.s++).padStart(3,'0'),name:sName,contact:'',email:'',phone:'',country:'',category:'General',createdAt:new Date().toISOString()};data.suppliers.push(sup);}const pCode=gc(r,'Project Code','Project');let proj=data.projects.find(p=>p.code.toLowerCase()===pCode.toLowerCase());const pName=gc(r,'Project Name');if(!proj&&(pCode||pName)){proj={id:'P'+String(nextId.p++).padStart(3,'0'),code:pCode||('PRJ-IMP-'+nextId.p),name:pName||pCode,manager:'',dept:'',start:'',end:'',budget:0,currency:'USD',status:'Active',color:'#6764f6',desc:'Auto-created',createdAt:new Date().toISOString()};data.projects.push(proj);}const qty=parseFloat(gc(r,'Qty','Quantity'))||1,price=parseFloat(gc(r,'Unit Price','Price'))||0;
         const rawPoNo = gc(r,'PO #','PO Number','PO No','Purchase Order #','Purchase Order Number','Order Number','Order No','PO');
         const firstColVal = r[Object.keys(r)[0]];
         const poNo = rawPoNo||(firstColVal&&String(firstColVal).trim()&&String(firstColVal).trim()!=='None'?String(firstColVal).trim():'PO-IMP-'+nextId.o);
-        // Unique line id per row
         const lineId='L'+String(nextId.o++).padStart(5,'0');
-        // Track line number per PO
         const existingLines=data.orders.filter(x=>x.poNo===poNo).length;
         data.orders.push({id:lineId,poNo,lineNo:existingLines+1,project:proj?proj.id:'',supplier:sup?sup.id:'',item,qty,price,currency:gc(r,'Currency')||'USD',amount:qty*price,category:gc(r,'Category')||'Other',sentDate:fmtD(r['PO Sent Date']||r['Sent Date']),expDelivery:fmtD(r['Expected Delivery Date']||r['Expected Delivery']),delivery:fmtD(r['Exact Delivery Date']||r['Exact Delivery']||r['Delivery Date']||r['Delivery']),status:gc(r,'Status')||'Draft',notes:gc(r,'Notes'),createdAt:new Date().toISOString()});added++;});}
   else if(type==='suppliers'){importRows.forEach(r=>{const name=gc(r,'Name','Supplier Name','Supplier');if(!name){skipped++;return;}if(data.suppliers.find(s=>s.name.toLowerCase()===name.toLowerCase())){skipped++;return;}data.suppliers.push({id:'S'+String(nextId.s++).padStart(3,'0'),name,contact:gc(r,'Contact','Contact Person'),email:gc(r,'Email'),phone:gc(r,'Phone'),country:gc(r,'Country'),category:gc(r,'Category')||'General',notes:'',createdAt:new Date().toISOString()});added++;});}
@@ -2097,7 +2029,6 @@ else if(type==='projects'){
       const code=gc(r,'Project Code','Code');
       const name=gc(r,'Project Name','Name');
       if(!code||!name){skipped++;return;}
-      // Skip if project code already exists
       if(data.projects.find(p=>p.code.toLowerCase()===code.toLowerCase())){skipped++;return;}
       data.projects.push({
         id:'P'+String(nextId.p++).padStart(3,'0'),
@@ -2162,12 +2093,9 @@ function downloadTemplate(){const type=document.getElementById('import-type').va
              ['Fiber Optic Cabling RFQ','IN27526001','NIVOX TECHNOLOGIES','2026-01-10','2026-01-25',50000,'USD','Draft','FO patch panels and cables']]
 };const data2=templates[type]||[['No template available']];XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(data2),type);XLSX.writeFile(wb,`${type}_template.xlsx`);toast('📄 Template downloaded','#6764f6');}
 
-// BOM Import
 function previewBOMImport(input){const file=input.files[0];if(!file)return;const reader=new FileReader();reader.onload=e=>{const wb=XLSX.read(e.target.result,{type:'array'});const ws=wb.Sheets[wb.SheetNames[0]];bomImportRows=XLSX.utils.sheet_to_json(ws,{defval:''});const prev=document.getElementById('bom-import-preview');if(!bomImportRows.length){prev.innerHTML='<div class="alert alert-warn">No data.</div>';return;}prev.innerHTML=`<div class="alert alert-success">✅ ${bomImportRows.length} rows found</div>`;document.getElementById('bom-import-btn').style.display='flex';};reader.readAsArrayBuffer(file);}
 function confirmBOMImport(){if(!bomImportRows.length)return;const gc=(r,...keys)=>{
-  // Try exact match first
   for(const k of keys){if(r[k]!==undefined&&r[k]!==null&&String(r[k]).trim()!==''&&String(r[k]).trim()!=='None')return String(r[k]).trim();}
-  // Try case-insensitive match
   const rKeys=Object.keys(r);
   for(const k of keys){
     const kl=k.toLowerCase().replace(/[^a-z0-9]/g,'');
@@ -2187,7 +2115,6 @@ function exportExcel(type){const wb=XLSX.utils.book_new();let d2=[],hdr=[];
 function exportBOM(){const wb=XLSX.utils.book_new();data.boms.forEach(b=>{const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),(b.bomNo||'BOM').slice(0,30));});XLSX.writeFile(wb,'BOM_Export_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 BOM exported!','#22d3a5');}
 function exportBOMDetail(){const b=getBOM(activeBOMId);if(!b)return;const p=getProjById(b.project);const rows=[['BOM No','Project','Rev','Status','Line No','Part No','Description','Supplier','Req Qty','Unit','PO Status','Linked POs','PO Qty']];(b.items||[]).forEach(it=>{const{status,pos,qty}=getPOStatus(it,b.project);const sup=it.supplier?getSupById(it.supplier):null;rows.push([b.bomNo,p?p.code:'',b.rev,b.status,it.lineNo,it.partNo,it.description,sup?sup.name:'Any',it.qty,it.unit,status==='released'?'PO Released':status==='partial'?'Partial':'PO Pending',pos.map(o=>o.id).join(', '),qty]);});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(rows),'BOM Detail');XLSX.writeFile(wb,'BOM_'+b.bomNo+'_'+new Date().toISOString().slice(0,10)+'.xlsx');toast('📥 Exported!','#22d3a5');}
 
-// Position PO tooltip near mouse cursor
 document.addEventListener('mousemove', function(e){
   const tips = document.querySelectorAll('.po-tooltip');
   tips.forEach(tip=>{
@@ -2204,14 +2131,11 @@ document.addEventListener('mousemove', function(e){
   });
 });
 
-// ══ QUICK DATE EDIT ══
 function openQuickDateEdit(poNo){
-  // Get all lines for this PO
   const lines=data.orders.filter(o=>(o.poNo||o.id)===poNo);
   if(!lines.length){toast('PO not found','#FF000F');return;}
   const first=lines[0];
   const proj=getProjById(first.project);
-  // Use existing dates from any line
   const sentDate    = lines.map(o=>o.sentDate).filter(Boolean).sort().pop()||'';
   const expDelivery = lines.map(o=>o.expDelivery).filter(Boolean).sort().pop()||'';
   const delivery    = lines.map(o=>o.delivery).filter(Boolean).sort().pop()||'';
@@ -2231,7 +2155,6 @@ function openQuickDateEdit(poNo){
 }
 function saveQuickDates(){
   const poNo=document.getElementById('qd-id').value;
-  // Update ALL line items of this PO
   const lines=data.orders.filter(x=>(x.poNo||x.id)===poNo);
   if(!lines.length){toast('PO not found','#FF000F');return;}
   const sent=document.getElementById('qd-sent').value;
@@ -2247,9 +2170,7 @@ function saveQuickDates(){
   toast('✅ Dates saved for all '+lines.length+' line items');
 }
 
-// ══ PO LINE ITEMS VIEWER ══
 function openPOLines(poId){
-  // Filter by poNo field (new) with fallback to id (legacy)
   const lines = data.orders.filter(o => (o.poNo||o.id) === poId);
   if(!lines.length){ toast('No lines found for PO: ' + poId, '#FF000F'); return; }
 
@@ -2261,7 +2182,6 @@ function openPOLines(poId){
   const totalAmt = lines.reduce((s,o)=>s+Number(o.amount||0), 0);
   const totalQty = lines.reduce((s,o)=>s+Number(o.qty||0), 0);
 
-  // Resolve dates from any line that has them
   const sentDate    = lines.map(o=>o.sentDate).filter(Boolean).sort().pop() || '';
   const expDelivery = lines.map(o=>o.expDelivery).filter(Boolean).sort().pop() || '';
   const delivery    = lines.map(o=>o.delivery).filter(Boolean).sort().pop() || '';
@@ -2287,14 +2207,9 @@ function openPOLines(poId){
   document.getElementById('po-lines-body').innerHTML = lines.map((o,i)=>{
     const lSym=(o.currency||'USD')==='INR'?'₹':(o.currency||'USD')==='EUR'?'€':(o.currency||'USD')==='GBP'?'£':'$';
     const lineNum = o.lineNo||i+1;
-    // Use item description if available, else build a smart auto-label
     const hasDesc = o.item && o.item.trim() && o.item.trim()!=='—';
-    const itemLabel = hasDesc
-      ? o.item.trim()
-      : `<span style="color:#94a3b8;font-style:italic">No description provided</span>`;
-    const subLabel = !hasDesc
-      ? `<div style="font-size:.72rem;color:#a5b4fc;margin-top:3px">Qty: <b>${Number(o.qty||0).toLocaleString()}</b> × ${lSym}${Number(o.price||0).toLocaleString()} per unit</div>`
-      : '';
+    const itemLabel = hasDesc ? o.item.trim() : `<span style="color:#94a3b8;font-style:italic">No description provided</span>`;
+    const subLabel = !hasDesc ? `<div style="font-size:.72rem;color:#a5b4fc;margin-top:3px">Qty: <b>${Number(o.qty||0).toLocaleString()}</b> × ${lSym}${Number(o.price||0).toLocaleString()} per unit</div>` : '';
     return `<tr>
       <td style="color:#7c7fa8;text-align:center;font-size:.75rem;font-weight:700">${lineNum}</td>
       <td>
@@ -2320,12 +2235,10 @@ function openPOLines(poId){
       <td></td>
     </tr>`;
 
-  // Show note if item descriptions are missing
   const missingDesc = lines.every(o=>!o.item||!o.item.trim()||o.item.trim()==='—');
   const noteEl = document.getElementById('po-lines-note');
-  if(noteEl){
-    noteEl.style.display = missingDesc ? 'block' : 'none';
-  }
+  if(noteEl){ noteEl.style.display = missingDesc ? 'block' : 'none'; }
+  
   document.getElementById('po-lines-edit-btn').onclick = ()=>{ closeModal('poLinesModal'); openQuickDateEdit(poId); };
   openModal('poLinesModal');
 }
@@ -2338,7 +2251,6 @@ function deletePOGroup(poNo){
   saveData(); renderOrders(); toast('🗑 PO '+poNo+' deleted','#FF000F');
 }
 
-// ── IFAT BREACH DETAIL POPUP ──────────────────────────────
 function showIFATBreachDetail(planId){
   const plan=data.procplans.find(p=>p.id===planId);
   if(!plan||!plan.ifat)return;
@@ -2348,7 +2260,6 @@ function showIFATBreachDetail(planId){
   const safeDateStr=safeD.toISOString().slice(0,10);
   const proj=getProjById(plan.project);
 
-  // Get deduped PO list for this project
   const poMap={};
   data.orders.filter(o=>o.project===plan.project&&(o.expDelivery||o.delivery)&&!['Cancelled','Closed'].includes(o.status))
     .forEach(o=>{
@@ -2396,8 +2307,8 @@ function showIFATBreachDetail(planId){
       <tbody>
       ${rows.map(o=>{
         const poD=new Date(o._poDate+'T00:00:00');
-        const daysToIFAT=Math.ceil((ifatD-poD)/86400000);  // +ve = before IFAT (good)
-        const daysToSafe=Math.ceil((safeD-poD)/86400000);  // +ve = before safe (very good)
+        const daysToIFAT=Math.ceil((ifatD-poD)/86400000);  
+        const daysToSafe=Math.ceil((safeD-poD)/86400000);  
         const bg=o._type==='breach'?'rgba(255,0,15,.06)':o._type==='warning'?'rgba(245,166,35,.06)':'rgba(34,211,165,.04)';
         const typeBadge=o._type==='breach'
           ?'<span class="badge badge-red" style="font-size:.65rem">🚨 BREACH</span>'
@@ -2416,6 +2327,14 @@ function showIFATBreachDetail(planId){
           <td style="padding:8px 10px">${getSupName(o.supplier)}</td>
           <td style="padding:8px 10px;text-align:center;font-weight:700">${fmtDate(o._poDate)}</td>
           <td style="padding:8px 10px;text-align:center">${safeLabel}</td>
-          <td style="**Something went wrong, please try again** 
-
- 
+          <td style="padding:8px 10px;text-align:center">${ifatLabel}</td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table>`;
+  
+  modal.classList.add('open');
+}
+</script>
+</body>
+</html>
