@@ -1002,17 +1002,22 @@ function setOnlineBadge(online) {
 async function loadFromCosmos() {
   showLoader('Connecting to Cosmos DB...');
   try {
-    const res = await fetch(`${DAB_BASE_URL}/Item/id/${DOC_ID}`, {
-      method : 'GET',
-      headers: { 'Content-Type': 'application/json' }
+    // Consistent endpoint with ID
+    const res = await fetch(`${DAB_BASE_URL}/Item/${DOC_ID}`, {
+      method: 'GET',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+        // Add auth if needed:
+        // 'Authorization': 'Bearer YOUR_TOKEN'
+      }
     });
 
-    // ── 404 means first run — no document yet ──
     if (res.status === 404) {
       console.info('No Cosmos DB document found. Starting fresh.');
       setOnlineBadge(true);
       hideLoader();
-      _loadFromLocalStorage();   // fallback to any cached data
+      _loadFromLocalStorage();
       renderDashboard();
       return;
     }
@@ -1020,26 +1025,39 @@ async function loadFromCosmos() {
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const json = await res.json();
-    let payload = json?.value?.[0]?.payload || json?.payload;
-    if (typeof payload === 'string') payload = JSON.parse(payload);
-
-    if (payload) {
-      data   = { ...data,   ...payload };
-      nextId = { ...nextId, ...(payload.nextId || {}) };
-      // Sync localStorage as backup
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
-      toast('✅ Data loaded from Cosmos DB', '#22d3a5');
-    } else {
-      _loadFromLocalStorage();
+    
+    // Handle different response formats
+    let payload = json?.value?.[0] || json;
+    
+    // If data is nested in properties, extract it
+    if (payload && typeof payload === 'object') {
+      const { projects, suppliers, orders, boms, procplans, contracts, reminders, activity, nextId } = payload;
+      
+      if (projects || suppliers || orders) {
+        data = { 
+          projects: projects || [],
+          suppliers: suppliers || [],
+          rfqs: payload.rfqs || [],
+          orders: orders || [],
+          boms: boms || [],
+          procplans: procplans || [],
+          contracts: contracts || [],
+          reminders: reminders || [],
+          activity: activity || []
+        };
+        if (nextId) nextId = nextId;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...data, nextId }));
+        toast('✅ Data loaded from Cosmos DB', '#22d3a5');
+      }
     }
 
     setOnlineBadge(true);
 
   } catch (err) {
-    console.warn('Cosmos DB load failed:', err.message);
+    console.warn('⚠ Cosmos DB load failed:', err.message);
     setOnlineBadge(false);
     _loadFromLocalStorage();
-    toast('⚠ Cosmos DB unavailable — using local cache', '#f5a623');
+    toast('⚠ Using local cache (offline)', '#f5a623');
   } finally {
     hideLoader();
     _ensureArrays();
@@ -1081,38 +1099,67 @@ async function saveData() {
   if (_isSaving) { _saveQueue = true; return; }
   _isSaving = true;
 
-  const payload = { id: DOC_ID, payload: JSON.stringify({ ...data, nextId }) };
+  // Correct payload structure for Cosmos DB
+  const payload = { 
+    id: DOC_ID, 
+    ...data, 
+    nextId 
+  };
 
   try {
-    // ── Send a single POST request (Upsert) ──
-    // Data API Builder for Cosmos DB generally uses POST to the base entity endpoint for both create and update.
-    const res = await fetch(`${DAB_BASE_URL}/Item`, {
-      method : 'POST',
+    showLoader('Saving to Cosmos DB...');
+    
+    // Try PATCH first (preferred for upsert), fallback to POST
+    const url = `${DAB_BASE_URL}/Item/${DOC_ID}`;
+    
+    const res = await fetch(url, {
+      method: 'PATCH',  // Use PATCH for upsert
       headers: { 
         'Content-Type': 'application/json',
-        // 'X-MS-API-ROLE': 'admin' // Uncomment if you have role-based access configured in DAB
+        'Accept': 'application/json'
+        // Add auth header if needed:
+        // 'Authorization': 'Bearer YOUR_TOKEN'
       },
-      body   : JSON.stringify(payload)
+      body: JSON.stringify(payload)
     });
 
-    if (!res.ok) {
-        // If it fails, throw the specific status code so we can see it in the console
-        throw new Error(`HTTP ${res.status} - ${res.statusText}`);
+    if (res.status === 404) {
+      // Document doesn't exist, try POST to create
+      console.info('Document not found, creating new one...');
+      const createRes = await fetch(`${DAB_BASE_URL}/Item`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!createRes.ok) {
+        throw new Error(`POST failed: HTTP ${createRes.status}`);
+      }
+      setOnlineBadge(true);
+      toast('✅ Data saved to Cosmos DB', '#22d3a5');
+    } else if (res.ok) {
+      setOnlineBadge(true);
+      toast('✅ Data synced to Cosmos DB', '#22d3a5');
+    } else {
+      throw new Error(`HTTP ${res.status}: ${res.statusText}`);
     }
 
-    // Success! Update the UI
-    setOnlineBadge(true);
+    hideLoader();
 
   } catch (err) {
-    console.error('Cosmos DB save failed:', err.message);
+    console.error('❌ Cosmos DB save failed:', err.message);
+    console.error('Stack:', err);
     setOnlineBadge(false);
-    // Data is safe in localStorage — no data loss
+    toast('⚠ Saved locally (offline mode)', '#f5a623');
   } finally {
+    hideLoader();
     _isSaving = false;
-    // If another save was queued while we were saving, run it now
     if (_saveQueue) {
       _saveQueue = false;
-      saveData();
+      setTimeout(() => saveData(), 500);
     }
   }
 }
